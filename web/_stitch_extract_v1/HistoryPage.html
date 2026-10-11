@@ -1,0 +1,668 @@
+<div class="flex flex-col w-full">
+<div class="px-space-lg py-space-md flex flex-col gap-space-lg">
+<!-- Top Instrument Header & Summary Strip -->
+<div class="flex flex-col xl:flex-row xl:items-center justify-between gap-space-md">
+<div class="flex flex-col gap-space-2xs min-w-0">
+<div class="flex items-center gap-space-xs text-outline font-label-sm text-label-sm uppercase tracking-wider">
+<span>Telemetry Ledger</span>
+<span>/</span>
+<span class="text-primary">Audit Log &amp; Session Archive</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface font-semibold tracking-tight">Investigation History</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-2xl">
+          Search and inspect runtime debugging sessions and repository-wide codebase audit scans across persistent telemetry stores.
+        </p>
+</div>
+<!-- Action Buttons & Quick Controls -->
+<div class="flex items-center gap-space-xs self-start xl:self-auto shrink-0">
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container-high hover:bg-surface-variant text-on-surface-variant hover:text-on-surface transition-colors font-label-sm text-label-sm shadow-sm" id="clearCacheBtn">
+<span class="material-symbols-outlined text-[15px] text-outline">mop</span>
+<span>Clear Stale Cache</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-primary-container hover:bg-primary-fixed-dim text-on-primary-container font-semibold transition-all shadow-[0_0_12px_rgba(53,214,242,0.25)] font-label-sm text-label-sm" id="exportReportBtn">
+<span class="material-symbols-outlined text-[15px]">file_download</span>
+<span>Export History Report (JSON/CSV)</span>
+</button>
+</div>
+</div>
+<!-- Telemetry Metric Pills Strip & Activity Mini-Graph -->
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-space-sm">
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm">
+<span>Total Indexed</span>
+<span class="material-symbols-outlined text-[14px] text-primary">database</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-on-surface font-bold">180</span>
+<span class="font-label-sm text-label-sm text-outline">Records</span>
+</div>
+<div class="mt-1 font-code-compact text-code-compact text-on-surface-variant">
+          142 Sessions <span class="text-outline">•</span> 38 Audits
+        </div>
+</div>
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm">
+<span>Resolution Rate</span>
+<span class="material-symbols-outlined text-[14px] text-tertiary">verified</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-tertiary font-bold">94.3%</span>
+<span class="font-label-sm text-label-sm text-tertiary-container">+1.8% w/w</span>
+</div>
+<div class="mt-1 w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-tertiary h-full rounded-full" style="width: 94.3%"></div>
+</div>
+</div>
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm">
+<span>Engine Persistence</span>
+<span class="material-symbols-outlined text-[14px] text-secondary">storage</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-on-surface font-bold">4.2 MB</span>
+<span class="font-label-sm text-label-sm text-secondary">WAL SQLite</span>
+</div>
+<div class="mt-1 font-code-compact text-code-compact text-outline truncate">
+          ~/.eyra/memory.sqlite
+        </div>
+</div>
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm">
+<span>Active Triage Needs</span>
+<span class="material-symbols-outlined text-[14px] text-error">notification_important</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-error font-bold">3</span>
+<span class="font-label-sm text-label-sm text-error/80">Pending Action</span>
+</div>
+<div class="mt-1 font-code-compact text-code-compact text-on-surface-variant">
+          1 Critical <span class="text-outline">•</span> 2 High
+        </div>
+</div>
+<!-- Mini Sparkline Distribution (Past 14 Days) -->
+<div class="hidden lg:flex col-span-1 p-space-sm rounded bg-surface-container-lowest flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm">
+<span>30-Day Activity Heat</span>
+<span class="font-code-compact text-code-compact text-primary">12.4/day</span>
+</div>
+<div class="mt-1 flex items-end justify-between h-9 gap-1 px-1">
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[35%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[45%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[70%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[55%]"></div>
+<div class="w-1.5 bg-secondary-container hover:bg-secondary rounded-t transition-all h-[85%]"></div>
+<div class="w-1.5 bg-primary-container hover:bg-primary rounded-t transition-all h-[100%] shadow-[0_0_8px_rgba(53,214,242,0.4)]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[60%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[40%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[75%]"></div>
+<div class="w-1.5 bg-primary-container hover:bg-primary rounded-t transition-all h-[90%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[50%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[65%]"></div>
+<div class="w-1.5 bg-surface-container-high hover:bg-primary rounded-t transition-all h-[40%]"></div>
+<div class="w-1.5 bg-tertiary-container hover:bg-tertiary rounded-t transition-all h-[95%]"></div>
+</div>
+<div class="flex items-center justify-between font-label-sm text-label-sm text-outline">
+<span>T-30d</span>
+<span class="text-primary">Today</span>
+</div>
+</div>
+</div>
+<!-- Search & Filter Control Deck -->
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col gap-space-sm shadow-md">
+<!-- Top Row: Query Input & Primary Type Segment -->
+<div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
+<!-- Search Field -->
+<div class="relative flex-1 flex items-center min-w-[280px]">
+<span class="material-symbols-outlined absolute left-3 text-[16px] text-outline pointer-events-none">search</span>
+<input class="w-full pl-9 pr-20 py-2 bg-surface-container-low rounded font-code-compact text-code-compact text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container focus:ring-1 focus:ring-primary-container transition-all" id="historySearchInput" placeholder="Search by error type, scan ID (#0142, #SC-088), filename (auth.py), or rule..." type="text"/>
+<div class="absolute right-2.5 flex items-center gap-1 pointer-events-none">
+<kbd class="px-1.5 py-0.5 rounded bg-surface-container-highest text-outline font-label-sm text-label-sm">⌘</kbd>
+<kbd class="px-1.5 py-0.5 rounded bg-surface-container-highest text-outline font-label-sm text-label-sm">F</kbd>
+</div>
+</div>
+<!-- Segmented Filter Tabs -->
+<div class="inline-flex p-1 rounded bg-surface-container-low shrink-0 self-start lg:self-auto">
+<button class="type-filter-btn px-3 py-1.5 rounded font-label-sm text-label-sm bg-primary-container text-on-primary-container font-semibold transition-all shadow-[0_0_8px_rgba(53,214,242,0.25)] flex items-center gap-1.5" data-type="all">
+<span>All</span>
+<span class="opacity-80 font-code-compact">(180)</span>
+</button>
+<button class="type-filter-btn px-3 py-1.5 rounded font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1.5" data-type="runtime">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Runtime Debugging</span>
+<span class="text-outline font-code-compact">(142)</span>
+</button>
+<button class="type-filter-btn px-3 py-1.5 rounded font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1.5" data-type="audit">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span>Codebase Audit</span>
+<span class="text-outline font-code-compact">(38)</span>
+</button>
+</div>
+</div>
+<!-- Second Row: Parametric Dropdown Selectors -->
+<div class="flex flex-wrap items-center justify-between gap-space-xs pt-space-xs">
+<div class="flex flex-wrap items-center gap-space-xs">
+<!-- Project Filter -->
+<div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors cursor-pointer">
+<span class="text-outline">Project:</span>
+<select class="bg-transparent text-on-surface focus:outline-none cursor-pointer pr-1" id="projectSelect">
+<option class="bg-surface-container" value="all">All Projects (3)</option>
+<option class="bg-surface-container" value="backend-api">backend-api</option>
+<option class="bg-surface-container" value="identity-service">identity-service</option>
+<option class="bg-surface-container" value="api-gateway">api-gateway</option>
+<option class="bg-surface-container" value="payment-service">payment-service</option>
+</select>
+</div>
+<!-- Status Filter -->
+<div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors cursor-pointer">
+<span class="text-outline">Status:</span>
+<select class="bg-transparent text-on-surface focus:outline-none cursor-pointer pr-1" id="statusSelect">
+<option class="bg-surface-container" value="all">All Statuses</option>
+<option class="bg-surface-container" value="Completed">Completed</option>
+<option class="bg-surface-container" value="Needs Review">Needs Review / Awaiting</option>
+<option class="bg-surface-container" value="Verified">Verified</option>
+<option class="bg-surface-container" value="Failed">Failed</option>
+</select>
+</div>
+<!-- Severity Filter -->
+<div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors cursor-pointer">
+<span class="text-outline">Severity:</span>
+<select class="bg-transparent text-on-surface focus:outline-none cursor-pointer pr-1" id="severitySelect">
+<option class="bg-surface-container" value="all">All Severities</option>
+<option class="bg-surface-container" value="CRITICAL">Critical</option>
+<option class="bg-surface-container" value="HIGH">High</option>
+<option class="bg-surface-container" value="MEDIUM">Medium</option>
+<option class="bg-surface-container" value="LOW">Low</option>
+</select>
+</div>
+<!-- Date Range Selector -->
+<div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-[14px] text-outline">calendar_today</span>
+<span class="text-outline">Window:</span>
+<select class="bg-transparent text-on-surface focus:outline-none cursor-pointer pr-1" id="dateSelect">
+<option class="bg-surface-container" value="30">Last 30 days</option>
+<option class="bg-surface-container" value="7">Last 7 days</option>
+<option class="bg-surface-container" value="24h">Last 24 hours</option>
+<option class="bg-surface-container" value="all">Full Time-to-Live</option>
+</select>
+</div>
+<!-- Reset Filter Chip -->
+<button class="flex items-center gap-1 px-2 py-1 rounded hover:bg-surface-container-high text-outline hover:text-on-surface font-label-sm text-label-sm transition-colors" id="resetFiltersBtn">
+<span class="material-symbols-outlined text-[13px]">refresh</span>
+<span>Reset</span>
+</button>
+</div>
+<!-- Realtime Auto-Sync Indicator -->
+<div class="flex items-center gap-2 px-2 py-1 rounded bg-surface-container-low text-outline font-label-sm text-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+<span>Live SQLite WAL Stream: Synced</span>
+</div>
+</div>
+</div>
+<!-- Main Data Timeline & Table Container -->
+<div class="rounded bg-surface-container-lowest overflow-hidden shadow-xl flex flex-col">
+<!-- Table Header -->
+<div class="grid grid-cols-12 gap-space-sm px-space-md py-space-sm bg-surface-container-low text-outline font-label-sm text-label-sm uppercase tracking-wider items-center select-none">
+<div class="col-span-2 flex items-center gap-1 cursor-pointer hover:text-on-surface">
+<span>Type &amp; ID</span>
+<span class="material-symbols-outlined text-[13px]">unfold_more</span>
+</div>
+<div class="col-span-3">Target File / Scope</div>
+<div class="col-span-3">Finding / Error Summary</div>
+<div class="col-span-1">Status</div>
+<div class="col-span-1">Severity</div>
+<div class="col-span-1">Latency</div>
+<div class="col-span-1 text-right">Action</div>
+</div>
+<!-- Table Body / Interactive Rows List -->
+<div class="flex flex-col" id="investigationTableBody">
+<!-- Record 1: ZeroDivisionError (Runtime) -->
+<div class="investigation-row grid grid-cols-12 gap-space-sm px-space-md py-3 items-center hover:bg-surface-container-high/60 transition-colors group cursor-pointer" data-project="backend-api" data-severity="CRITICAL" data-status="Needs Review" data-type="runtime">
+<div class="col-span-2 flex items-center gap-2 min-w-0">
+<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold bg-primary-container/15 text-primary">
+              RUNTIME
+            </span>
+<span class="font-code-compact text-code-compact text-on-surface font-medium truncate">#0142</span>
+</div>
+<div class="col-span-3 flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[14px] text-outline shrink-0">code</span>
+<span class="font-code-compact text-code-compact text-outline truncate">backend-api /</span>
+<span class="font-code-compact text-code-compact text-primary truncate font-medium">test.py:3</span>
+</div>
+<div class="col-span-3 min-w-0 pr-2">
+<div class="font-body-sm text-body-sm text-on-surface font-medium truncate">ZeroDivisionError: division by zero</div>
+<div class="font-code-compact text-[10px] text-outline truncate">calc_throughput() called with delta_time=0.0</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-error/10 text-error font-label-sm text-label-sm">
+<span class="w-1 h-1 rounded-full bg-error"></span>
+<span>Needs Review</span>
+</span>
+</div>
+<div class="col-span-1">
+<span class="px-1.5 py-0.5 rounded bg-error text-on-error font-label-sm text-label-sm font-semibold tracking-wider">
+              CRITICAL
+            </span>
+</div>
+<div class="col-span-1 flex flex-col justify-center">
+<span class="font-code-compact text-code-compact text-on-surface">1.4s</span>
+<span class="font-label-sm text-[10px] text-outline">5 mins ago</span>
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1">
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary font-label-sm text-label-sm flex items-center gap-1 transition-all group-hover:shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span>Inspect</span>
+<span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Record 2: Repository Security & Quality Audit (Audit) -->
+<div class="investigation-row grid grid-cols-12 gap-space-sm px-space-md py-3 items-center hover:bg-surface-container-high/60 transition-colors group cursor-pointer bg-surface-container-low/40" data-project="backend-api" data-severity="HIGH" data-status="Completed" data-type="audit">
+<div class="col-span-2 flex items-center gap-2 min-w-0">
+<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold bg-secondary-container/20 text-secondary">
+              AUDIT
+            </span>
+<span class="font-code-compact text-code-compact text-on-surface font-medium truncate">#SC-088</span>
+</div>
+<div class="col-span-3 flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[14px] text-secondary shrink-0">folder_zip</span>
+<span class="font-code-compact text-code-compact text-outline truncate">backend-api /</span>
+<span class="font-code-compact text-code-compact text-on-surface truncate">main (14 files)</span>
+</div>
+<div class="col-span-3 min-w-0 pr-2">
+<div class="font-body-sm text-body-sm text-on-surface font-medium truncate">Repository Security &amp; Quality Audit</div>
+<div class="font-code-compact text-[10px] text-outline truncate">AST scan: 2 potential CVE exploits in requirements.txt</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+<span>Completed</span>
+</span>
+</div>
+<div class="col-span-1">
+<span class="px-1.5 py-0.5 rounded bg-secondary-container/30 text-secondary font-label-sm text-label-sm font-semibold tracking-wider">
+              HIGH (2 CVEs)
+            </span>
+</div>
+<div class="col-span-1 flex flex-col justify-center">
+<span class="font-code-compact text-code-compact text-on-surface">12.8s</span>
+<span class="font-label-sm text-[10px] text-outline">42 mins ago</span>
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1">
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary font-label-sm text-label-sm flex items-center gap-1 transition-all group-hover:shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span>Inspect</span>
+<span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Record 3: Redis socket connection failure (Runtime) -->
+<div class="investigation-row grid grid-cols-12 gap-space-sm px-space-md py-3 items-center hover:bg-surface-container-high/60 transition-colors group cursor-pointer" data-project="identity-service" data-severity="CRITICAL" data-status="Verified" data-type="runtime">
+<div class="col-span-2 flex items-center gap-2 min-w-0">
+<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold bg-primary-container/15 text-primary">
+              RUNTIME
+            </span>
+<span class="font-code-compact text-code-compact text-on-surface font-medium truncate">#0141</span>
+</div>
+<div class="col-span-3 flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[14px] text-outline shrink-0">code</span>
+<span class="font-code-compact text-code-compact text-outline truncate">identity-service /</span>
+<span class="font-code-compact text-code-compact text-primary truncate font-medium">auth.py:48</span>
+</div>
+<div class="col-span-3 min-w-0 pr-2">
+<div class="font-body-sm text-body-sm text-on-surface font-medium truncate">Redis transient socket connection failure</div>
+<div class="font-code-compact text-[10px] text-outline truncate">ConnectionPoolTimeout exceeded 5000ms threshold during cluster failover</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+<span>Verified</span>
+</span>
+</div>
+<div class="col-span-1">
+<span class="px-1.5 py-0.5 rounded bg-error text-on-error font-label-sm text-label-sm font-semibold tracking-wider">
+              CRITICAL
+            </span>
+</div>
+<div class="col-span-1 flex flex-col justify-center">
+<span class="font-code-compact text-code-compact text-on-surface">3.2s</span>
+<span class="font-label-sm text-[10px] text-outline">2 hours ago</span>
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1">
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary font-label-sm text-label-sm flex items-center gap-1 transition-all group-hover:shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span>Inspect</span>
+<span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Record 4: OAuth2 Token Refresh Logic (Audit) -->
+<div class="investigation-row grid grid-cols-12 gap-space-sm px-space-md py-3 items-center hover:bg-surface-container-high/60 transition-colors group cursor-pointer bg-surface-container-low/40" data-project="api-gateway" data-severity="MEDIUM" data-status="Completed" data-type="audit">
+<div class="col-span-2 flex items-center gap-2 min-w-0">
+<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold bg-secondary-container/20 text-secondary">
+              AUDIT
+            </span>
+<span class="font-code-compact text-code-compact text-on-surface font-medium truncate">#SC-087</span>
+</div>
+<div class="col-span-3 flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[14px] text-secondary shrink-0">inventory_2</span>
+<span class="font-code-compact text-code-compact text-outline truncate">api-gateway /</span>
+<span class="font-code-compact text-code-compact text-on-surface truncate">auth</span>
+</div>
+<div class="col-span-3 min-w-0 pr-2">
+<div class="font-body-sm text-body-sm text-on-surface font-medium truncate">Incomplete OAuth2 token refresh logic</div>
+<div class="font-code-compact text-[10px] text-outline truncate">Missing PKCE validation in authorization_code grant flow</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+<span>Completed</span>
+</span>
+</div>
+<div class="col-span-1">
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm font-semibold tracking-wider">
+              MEDIUM
+            </span>
+</div>
+<div class="col-span-1 flex flex-col justify-center">
+<span class="font-code-compact text-code-compact text-on-surface">8.4s</span>
+<span class="font-label-sm text-[10px] text-outline">5 hours ago</span>
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1">
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary font-label-sm text-label-sm flex items-center gap-1 transition-all group-hover:shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span>Inspect</span>
+<span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Record 5: KeyError session_id (Runtime) -->
+<div class="investigation-row grid grid-cols-12 gap-space-sm px-space-md py-3 items-center hover:bg-surface-container-high/60 transition-colors group cursor-pointer" data-project="api-gateway" data-severity="HIGH" data-status="Verified" data-type="runtime">
+<div class="col-span-2 flex items-center gap-2 min-w-0">
+<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold bg-primary-container/15 text-primary">
+              RUNTIME
+            </span>
+<span class="font-code-compact text-code-compact text-on-surface font-medium truncate">#0140</span>
+</div>
+<div class="col-span-3 flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[14px] text-outline shrink-0">code</span>
+<span class="font-code-compact text-code-compact text-outline truncate">api-gateway /</span>
+<span class="font-code-compact text-code-compact text-primary truncate font-medium">session.py:112</span>
+</div>
+<div class="col-span-3 min-w-0 pr-2">
+<div class="font-body-sm text-body-sm text-on-surface font-medium truncate">KeyError: "session_id" in header parse</div>
+<div class="font-code-compact text-[10px] text-outline truncate">Upstream load balancer omitted Cookie payload under gzip encoding</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+<span>Verified</span>
+</span>
+</div>
+<div class="col-span-1">
+<span class="px-1.5 py-0.5 rounded bg-secondary-container/30 text-secondary font-label-sm text-label-sm font-semibold tracking-wider">
+              HIGH
+            </span>
+</div>
+<div class="col-span-1 flex flex-col justify-center">
+<span class="font-code-compact text-code-compact text-on-surface">0.9s</span>
+<span class="font-label-sm text-[10px] text-outline">Yesterday</span>
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1">
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary font-label-sm text-label-sm flex items-center gap-1 transition-all group-hover:shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span>Inspect</span>
+<span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Record 6: Unhandled Stripe Exception (Audit) -->
+<div class="investigation-row grid grid-cols-12 gap-space-sm px-space-md py-3 items-center hover:bg-surface-container-high/60 transition-colors group cursor-pointer bg-surface-container-low/40" data-project="payment-service" data-severity="HIGH" data-status="Needs Review" data-type="audit">
+<div class="col-span-2 flex items-center gap-2 min-w-0">
+<span class="px-1.5 py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold bg-secondary-container/20 text-secondary">
+              AUDIT
+            </span>
+<span class="font-code-compact text-code-compact text-on-surface font-medium truncate">#SC-086</span>
+</div>
+<div class="col-span-3 flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[14px] text-secondary shrink-0">inventory_2</span>
+<span class="font-code-compact text-code-compact text-outline truncate">payment-service /</span>
+<span class="font-code-compact text-code-compact text-on-surface truncate">webhook.py</span>
+</div>
+<div class="col-span-3 min-w-0 pr-2">
+<div class="font-body-sm text-body-sm text-on-surface font-medium truncate">Unhandled stripe exception in idempotency stub</div>
+<div class="font-code-compact text-[10px] text-outline truncate">CardError caught but webhook ACK returned 200 without queue rollback</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-secondary-container/20 text-secondary font-label-sm text-label-sm">
+<span class="w-1 h-1 rounded-full bg-secondary"></span>
+<span>Awaiting Review</span>
+</span>
+</div>
+<div class="col-span-1">
+<span class="px-1.5 py-0.5 rounded bg-secondary-container/30 text-secondary font-label-sm text-label-sm font-semibold tracking-wider">
+              HIGH
+            </span>
+</div>
+<div class="col-span-1 flex flex-col justify-center">
+<span class="font-code-compact text-code-compact text-on-surface">14.1s</span>
+<span class="font-label-sm text-[10px] text-outline">2 days ago</span>
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1">
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary font-label-sm text-label-sm flex items-center gap-1 transition-all group-hover:shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span>Inspect</span>
+<span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Inspector Drawer Preview Flyout (Dynamic Inspection Modal / Drawer) -->
+<div class="hidden rounded bg-surface-container-lowest p-space-md shadow-2xl flex-col gap-space-md" id="inspectorDrawer">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></div>
+<div class="font-headline-sm text-headline-sm text-on-surface font-semibold">Active Session Inspector</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-primary-container/20 text-primary" id="drawerSessionBadge">#0142 • test.py:3</span>
+</div>
+<button class="p-1 rounded hover:bg-surface-container-high text-outline hover:text-on-surface transition-colors" id="closeDrawerBtn">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-space-md">
+<!-- Telemetry Details -->
+<div class="p-space-sm rounded bg-surface-container-low flex flex-col gap-space-xs">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Session Manifest</span>
+<div class="flex justify-between font-code-compact text-code-compact"><span class="text-outline">Runtime UUID:</span><span class="text-on-surface">8f3a9e21-d419</span></div>
+<div class="flex justify-between font-code-compact text-code-compact"><span class="text-outline">Agent Probe:</span><span class="text-tertiary">v1.2-connected</span></div>
+<div class="flex justify-between font-code-compact text-code-compact"><span class="text-outline">Engine Model:</span><span class="text-secondary">Groq Llama-3-70b</span></div>
+<div class="flex justify-between font-code-compact text-code-compact"><span class="text-outline">Stack Frames:</span><span class="text-on-surface">4 frames indexed</span></div>
+</div>
+<!-- Code Snippet Frame -->
+<div class="col-span-2 p-space-sm rounded bg-surface-container-low flex flex-col gap-space-xs font-code-compact text-code-compact">
+<div class="flex items-center justify-between text-outline">
+<span>backend-api/test.py (Execution Frame 3)</span>
+<span class="text-error font-label-sm text-label-sm">DivisionByZero Exception</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container-lowest text-on-surface flex flex-col gap-0.5">
+<div class="text-outline">2 |   def calc_throughput(delta_time, total_bytes):</div>
+<div class="bg-error-container/20 text-error px-1 -mx-1 rounded">3 |       return total_bytes / delta_time   &lt;-- ZeroDivisionError</div>
+<div class="text-outline">4 |   </div>
+<div class="text-outline">5 |   rate = calc_throughput(0, 1048576)</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<span class="text-tertiary font-label-sm text-label-sm">AI Suggested Fix Available (Guarded division ternary)</span>
+<button class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-label-sm text-label-sm font-semibold hover:bg-primary-fixed transition-colors">
+              Apply Fix in Workspace
+            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Storage Telemetry Footer & Precision Pagination -->
+<div class="flex flex-col md:flex-row items-center justify-between gap-space-sm pt-space-xs pb-space-lg text-outline font-label-sm text-label-sm">
+<!-- SQLite Storage Engine Info -->
+<div class="flex items-center gap-space-sm">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-lowest text-on-surface-variant font-code-compact text-code-compact shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">dns</span>
+<span class="text-outline">Storage:</span>
+<span>~/.eyra/memory.sqlite</span>
+<span class="text-outline-variant">•</span>
+<span class="text-tertiary">4.2 MB (VACUUM clean)</span>
+</div>
+<span class="hidden sm:inline text-outline">•</span>
+<span class="hidden sm:inline">Retention Policy: 90 Days Rolling</span>
+</div>
+<!-- Pagination Navigation -->
+<div class="flex items-center gap-space-xs">
+<span class="text-on-surface-variant mr-2">Showing 1-6 of 180 entries</span>
+<button class="w-7 h-7 rounded bg-surface-container-lowest hover:bg-surface-container text-outline hover:text-on-surface flex items-center justify-center transition-colors shadow-sm disabled:opacity-40" disabled="">
+<span class="material-symbols-outlined text-[14px]">chevron_left</span>
+</button>
+<button class="w-7 h-7 rounded bg-primary-container text-on-primary-container font-semibold flex items-center justify-center shadow-[0_0_8px_rgba(53,214,242,0.25)]">1</button>
+<button class="w-7 h-7 rounded bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors shadow-sm">2</button>
+<button class="w-7 h-7 rounded bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors shadow-sm">3</button>
+<span class="px-1 text-outline">...</span>
+<button class="w-7 h-7 rounded bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors shadow-sm">30</button>
+<button class="w-7 h-7 rounded bg-surface-container-lowest hover:bg-surface-container text-outline hover:text-on-surface flex items-center justify-center transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Investigation History Interactive Client Controller
+  (function initInvestigationHistory() {
+    const searchInput = document.getElementById('historySearchInput');
+    const filterButtons = document.querySelectorAll('.type-filter-btn');
+    const projectSelect = document.getElementById('projectSelect');
+    const statusSelect = document.getElementById('statusSelect');
+    const severitySelect = document.getElementById('severitySelect');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const rows = document.querySelectorAll('.investigation-row');
+    const inspectorDrawer = document.getElementById('inspectorDrawer');
+    const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+    const drawerSessionBadge = document.getElementById('drawerSessionBadge');
+    const clearCacheBtn = document.getElementById('clearCacheBtn');
+    const exportReportBtn = document.getElementById('exportReportBtn');
+
+    let currentTypeFilter = 'all';
+
+    // Segmented Type Switcher
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterButtons.forEach(b => {
+          b.className = 'type-filter-btn px-3 py-1.5 rounded font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-1.5';
+        });
+        btn.className = 'type-filter-btn px-3 py-1.5 rounded font-label-sm text-label-sm bg-primary-container text-on-primary-container font-semibold transition-all shadow-[0_0_8px_rgba(53,214,242,0.25)] flex items-center gap-1.5';
+        currentTypeFilter = btn.dataset.type;
+        applyFilters();
+      });
+    });
+
+    // Filtering logic
+    function applyFilters() {
+      const query = (searchInput.value || '').toLowerCase().trim();
+      const proj = projectSelect.value;
+      const status = statusSelect.value;
+      const severity = severitySelect.value;
+
+      rows.forEach(row => {
+        const rowType = row.dataset.type;
+        const rowProj = row.dataset.project;
+        const rowStatus = row.dataset.status;
+        const rowSeverity = row.dataset.severity;
+        const rowText = row.innerText.toLowerCase();
+
+        let matchesType = (currentTypeFilter === 'all' || rowType === currentTypeFilter);
+        let matchesProj = (proj === 'all' || rowProj === proj);
+        let matchesStatus = (status === 'all' || rowStatus === status || (status === 'Needs Review' && rowStatus.includes('Review')));
+        let matchesSeverity = (severity === 'all' || rowSeverity.includes(severity));
+        let matchesQuery = (!query || rowText.includes(query));
+
+        if (matchesType && matchesProj && matchesStatus && matchesSeverity && matchesQuery) {
+          row.classList.remove('hidden');
+          row.classList.add('grid');
+        } else {
+          row.classList.remove('grid');
+          row.classList.add('hidden');
+        }
+      });
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    if (projectSelect) projectSelect.addEventListener('change', applyFilters);
+    if (statusSelect) statusSelect.addEventListener('change', applyFilters);
+    if (severitySelect) severitySelect.addEventListener('change', applyFilters);
+
+    if (resetFiltersBtn) {
+      resetFiltersBtn.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        if (projectSelect) projectSelect.value = 'all';
+        if (statusSelect) statusSelect.value = 'all';
+        if (severitySelect) severitySelect.value = 'all';
+        if (filterButtons[0]) filterButtons[0].click();
+        applyFilters();
+      });
+    }
+
+    // Row inspection flyout
+    rows.forEach(row => {
+      row.addEventListener('click', () => {
+        const idElem = row.querySelector('.font-code-compact');
+        const fileElem = row.querySelectorAll('.font-code-compact')[2] || row.querySelectorAll('.font-code-compact')[1];
+        const id = idElem ? idElem.innerText : '#0142';
+        const file = fileElem ? fileElem.innerText : 'Scope';
+
+        if (drawerSessionBadge) {
+          drawerSessionBadge.innerText = `${id} • ${file}`;
+        }
+        if (inspectorDrawer) {
+          inspectorDrawer.classList.remove('hidden');
+          inspectorDrawer.classList.add('flex');
+          inspectorDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+    });
+
+    if (closeDrawerBtn && inspectorDrawer) {
+      closeDrawerBtn.addEventListener('click', () => {
+        inspectorDrawer.classList.add('hidden');
+        inspectorDrawer.classList.remove('flex');
+      });
+    }
+
+    // Quick Action button feedbacks
+    if (clearCacheBtn) {
+      clearCacheBtn.addEventListener('click', (e) => {
+        const originalText = clearCacheBtn.innerHTML;
+        clearCacheBtn.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-spin">sync</span><span>Vacuuming WAL...</span>';
+        setTimeout(() => {
+          clearCacheBtn.innerHTML = '<span class="material-symbols-outlined text-[15px] text-tertiary">done</span><span>Cleaned (0 stale)</span>';
+          setTimeout(() => {
+            clearCacheBtn.innerHTML = originalText;
+          }, 2000);
+        }, 600);
+      });
+    }
+
+    if (exportReportBtn) {
+      exportReportBtn.addEventListener('click', () => {
+        const originalText = exportReportBtn.innerHTML;
+        exportReportBtn.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-bounce">downloading</span><span>Generating JSON...</span>';
+        setTimeout(() => {
+          exportReportBtn.innerHTML = '<span class="material-symbols-outlined text-[15px]">done</span><span>Report Exported</span>';
+          setTimeout(() => {
+            exportReportBtn.innerHTML = originalText;
+          }, 2000);
+        }, 700);
+      });
+    }
+
+    // Global shortcut Cmd+F / Ctrl+F focus
+    window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        if (searchInput && document.activeElement !== searchInput) {
+          e.preventDefault();
+          searchInput.focus();
+          searchInput.select();
+        }
+      }
+    });
+  })();
+</script>

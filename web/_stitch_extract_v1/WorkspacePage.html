@@ -1,0 +1,490 @@
+<div class="flex flex-col w-full h-[calc(100vh-3.5rem)] overflow-hidden select-none">
+<!-- Top Action & Diagnostic Context Bar -->
+<header class="h-11 bg-surface-container-lowest flex items-center justify-between px-space-md shrink-0 gap-space-md z-30">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="flex items-center gap-1.5 font-code-compact text-code-compact text-on-surface-variant truncate">
+<span class="text-outline">workspace</span>
+<span class="text-outline-variant">/</span>
+<span class="text-outline">backend-api</span>
+<span class="text-outline-variant">/</span>
+<span class="text-primary font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">code</span>
+          test.py:3
+        </span>
+</div>
+<div class="h-3.5 w-[1px] bg-outline-variant/30 hidden md:block"></div>
+<!-- Runtime Probe Indicator -->
+<div class="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-low text-primary font-label-sm text-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse shadow-[0_0_8px_rgba(53,214,242,0.8)]"></span>
+<span>Runtime Debugging Active (AgentScope Engine)</span>
+</div>
+<!-- Static Bridge Link -->
+<button class="hidden xl:flex items-center gap-1.5 px-2 py-0.5 rounded bg-error-container/20 text-error hover:bg-error-container/30 transition-all font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[13px]">warning</span>
+<span>View Related Audit Findings (2 warnings in this file)</span>
+</button>
+</div>
+<!-- Agent Workflow Stepper -->
+<div class="flex items-center gap-space-sm shrink-0">
+<div class="hidden 2xl:flex items-center bg-surface-container-low px-1.5 py-0.5 rounded font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface">
+<span class="material-symbols-outlined text-[12px] text-tertiary">visibility</span>
+<span>Observe</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline-variant px-0.5">chevron_right</span>
+<div class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface">
+<span class="material-symbols-outlined text-[12px] text-primary">data_object</span>
+<span>Investigate</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline-variant px-0.5">chevron_right</span>
+<div class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container font-semibold shadow-[0_0_8px_rgba(53,214,242,0.3)]">
+<span class="material-symbols-outlined text-[12px]">psychology</span>
+<span>Reason (Llama-3-70b)</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline-variant px-0.5">chevron_right</span>
+<div class="flex items-center gap-1 px-1.5 py-0.5 text-outline">
+<span class="material-symbols-outlined text-[12px]">verified</span>
+<span>Verify</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="flex items-center gap-1 px-2 py-1 rounded bg-surface-container-low hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm transition-colors" id="toggleBottomDockBtn" title="Toggle Console Dock">
+<span class="material-symbols-outlined text-[14px]">terminal</span>
+<span class="hidden sm:inline">Dock</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Three-Panel Work Area -->
+<div class="flex-1 flex overflow-hidden min-h-0 bg-surface-container-lowest">
+<!-- LEFT PANEL: Context & Investigation (~24%) -->
+<aside class="w-72 2xl:w-80 flex flex-col bg-surface-container-low shrink-0 overflow-y-auto">
+<!-- Session Telemetry Header -->
+<div class="p-space-sm bg-surface-container-lowest flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Debugging Context</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-tertiary">SESSION #0142</span>
+</div>
+<div class="grid grid-cols-2 gap-1 font-code-compact text-code-compact">
+<div class="p-1 rounded bg-surface-container flex flex-col">
+<span class="text-outline text-[10px]">PROCESS PID</span>
+<span class="text-on-surface font-semibold">84920 [active]</span>
+</div>
+<div class="p-1 rounded bg-surface-container flex flex-col">
+<span class="text-outline text-[10px]">RUNTIME ENV</span>
+<span class="text-on-surface font-semibold">Python 3.11.8</span>
+</div>
+</div>
+</div>
+<!-- File Explorer Tree -->
+<div class="p-space-sm flex flex-col gap-1">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm px-1 py-0.5">
+<span>PROJECT EXPLORER</span>
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</div>
+<div class="flex flex-col font-code-compact text-code-compact gap-0.5">
+<div class="flex items-center gap-1 px-1.5 py-1 text-on-surface-variant hover:bg-surface-container rounded cursor-pointer">
+<span class="material-symbols-outlined text-[14px] text-outline">folder_open</span>
+<span>backend-api</span>
+</div>
+<div class="pl-4 flex flex-col gap-0.5">
+<div class="flex items-center justify-between px-1.5 py-1 rounded bg-surface-container text-on-surface cursor-pointer">
+<div class="flex items-center gap-1.5 truncate">
+<span class="material-symbols-outlined text-[14px] text-error">description</span>
+<span class="font-medium text-error">test.py</span>
+</div>
+<span class="w-1.5 h-1.5 rounded-full bg-error animate-ping"></span>
+</div>
+<div class="flex items-center gap-1.5 px-1.5 py-1 text-on-surface-variant hover:bg-surface-container rounded cursor-pointer opacity-80">
+<span class="material-symbols-outlined text-[14px] text-outline">description</span>
+<span>main.py</span>
+</div>
+<div class="flex items-center gap-1.5 px-1.5 py-1 text-on-surface-variant hover:bg-surface-container rounded cursor-pointer opacity-80">
+<span class="material-symbols-outlined text-[14px] text-outline">description</span>
+<span>routes_auth.py</span>
+</div>
+<div class="flex items-center gap-1.5 px-1.5 py-1 text-on-surface-variant hover:bg-surface-container rounded cursor-pointer opacity-80">
+<span class="material-symbols-outlined text-[14px] text-outline">settings</span>
+<span>config.json</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Chronological Incident Timeline -->
+<div class="p-space-sm flex flex-col gap-2">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm px-1">
+<span>FAILURE TIMELINE</span>
+<span class="text-error font-code-compact text-code-compact">T-0.00s</span>
+</div>
+<div class="flex flex-col pl-3 relative gap-2">
+<div class="absolute left-1.5 top-1 bottom-1 w-[1px] bg-surface-container-highest"></div>
+<div class="relative flex flex-col bg-surface-container p-1.5 rounded">
+<div class="absolute -left-[14px] top-2 w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="font-code-compact text-[10px] text-outline">14:28:10.104</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">Invoked calculate_metrics()</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">Frame #0 initialized</span>
+</div>
+<div class="relative flex flex-col bg-surface-container p-1.5 rounded">
+<div class="absolute -left-[14px] top-2 w-2 h-2 rounded-full bg-primary-container"></div>
+<span class="font-code-compact text-[10px] text-outline">14:28:10.142</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">Assigned b = 0</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">Global namespace mutation</span>
+</div>
+<div class="relative flex flex-col bg-error-container/20 p-1.5 rounded">
+<div class="absolute -left-[14px] top-2 w-2 h-2 rounded-full bg-error"></div>
+<span class="font-code-compact text-[10px] text-error font-medium">14:28:10.148</span>
+<span class="font-body-sm text-body-sm text-error font-semibold">SIGABRT on Division</span>
+<span class="font-code-compact text-[10px] text-on-error-container">ZeroDivisionError raised at Line 3</span>
+</div>
+</div>
+</div>
+<!-- Agent Investigation Step Telemetry -->
+<div class="p-space-sm mt-auto bg-surface-container-lowest flex flex-col gap-1.5">
+<span class="font-label-sm text-label-sm uppercase text-outline">Probe Telemetry</span>
+<div class="flex items-center justify-between text-on-surface-variant font-code-compact text-code-compact">
+<span>Captured Frames</span>
+<span class="text-on-surface">3 frames</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-code-compact text-code-compact">
+<span>AST Inspection</span>
+<span class="text-tertiary font-medium">Completed</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-code-compact text-code-compact">
+<span>Audit Correlation</span>
+<span class="text-primary font-medium">Rule AST-PY-09</span>
+</div>
+</div>
+</aside>
+<!-- CENTER PANEL: Code Editor & Execution Surface (~48%) -->
+<main class="flex-1 flex flex-col min-w-0 bg-surface overflow-hidden relative">
+<!-- Editor Tab Header & Quick Debug Toolbar -->
+<div class="h-9 bg-surface-container-lowest flex items-center justify-between px-space-sm shrink-0">
+<div class="flex items-center h-full">
+<div class="h-full flex items-center gap-2 px-space-md bg-surface text-on-surface font-code-compact text-code-compact">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span>test.py</span>
+<span class="text-outline text-[10px]">[Python 3.11]</span>
+<span class="material-symbols-outlined text-[13px] text-outline ml-1 cursor-pointer">close</span>
+</div>
+</div>
+<!-- Inline Editor Actions -->
+<div class="flex items-center gap-1.5">
+<button class="flex items-center gap-1 px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-label-sm text-label-sm font-semibold hover:brightness-110 shadow-[0_0_8px_rgba(53,214,242,0.25)]">
+<span class="material-symbols-outlined text-[13px]">play_arrow</span>
+<span>Re-run in Debug Mode</span>
+</button>
+<button class="flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[13px]">redo</span>
+<span>Step Into</span>
+</button>
+<button class="flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[13px]">account_tree</span>
+<span>Inspect AST Node</span>
+</button>
+</div>
+</div>
+<!-- Code Surface -->
+<div class="flex-1 overflow-auto p-space-md font-code-body text-code-body relative">
+<div class="flex min-w-[560px]">
+<!-- Line Numbers -->
+<div class="w-10 select-none text-outline-variant font-code-compact text-code-compact text-right pr-4 flex flex-col gap-1">
+<span>1</span>
+<span>2</span>
+<span class="text-error font-semibold">3</span>
+<span>4</span>
+<span>5</span>
+<span>6</span>
+<span>7</span>
+<span>8</span>
+<span>9</span>
+<span>10</span>
+<span>11</span>
+<span>12</span>
+<span>13</span>
+<span>14</span>
+</div>
+<!-- Code Lines -->
+<div class="flex-1 flex flex-col gap-1 text-on-surface">
+<!-- Line 1 -->
+<div class="h-[19px] flex items-center">
+<span class="text-secondary font-medium">def</span> <span class="text-primary font-medium">calculate_metrics</span>(weight: <span class="text-tertiary">float</span>) -&gt; <span class="text-tertiary">float</span>:
+            </div>
+<!-- Line 2 -->
+<div class="h-[19px] flex items-center pl-4">
+<span class="text-on-surface">a = <span class="text-tertiary">10</span>; b = <span class="text-error font-semibold">0</span></span>
+<span class="text-outline ml-4"># Runtime input simulation</span>
+</div>
+<!-- Line 3: CRASH SITE -->
+<div class="relative bg-error-container/25 rounded px-2 -mx-2 flex flex-col my-1">
+<div class="flex items-center justify-between h-[28px]">
+<div class="flex items-center pl-4">
+<span class="text-secondary font-medium">print</span>(a / b)
+                </div>
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded bg-error text-on-error font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">error</span>
+                    ZeroDivisionError: division by zero
+                  </span>
+</div>
+</div>
+<!-- Interactive Live Inspection Overlay Chip -->
+<div class="my-1.5 p-2 rounded bg-surface-container-high flex flex-wrap items-center gap-2 shadow-lg">
+<span class="font-label-sm text-label-sm text-outline flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px] text-primary">sensors</span>
+                  FRAME INSPECTOR:
+                </span>
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface font-code-compact text-code-compact">
+<strong class="text-primary">a:</strong> 10 <span class="text-outline text-[10px]">(int)</span>
+</span>
+<span class="px-2 py-0.5 rounded bg-error/20 text-error font-code-compact text-code-compact flex items-center gap-1 font-semibold">
+<strong>b:</strong> 0 <span class="text-on-surface text-[10px]">(int - INVALID DIVISOR)</span>
+</span>
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-code-compact text-code-compact">
+<strong class="text-outline">weight:</strong> 1.482 <span class="text-outline text-[10px]">(float)</span>
+</span>
+</div>
+</div>
+<!-- Line 4 -->
+<div class="h-[19px] flex items-center pl-4">
+<span class="text-secondary font-medium">return</span> (a / b) * weight
+            </div>
+<!-- Line 5 -->
+<div class="h-[19px] flex items-center">
+<span></span>
+</div>
+<!-- Line 6 -->
+<div class="h-[19px] flex items-center">
+<span class="text-secondary font-medium">def</span> <span class="text-primary font-medium">process_batch</span>(items: <span class="text-tertiary">list</span>):
+            </div>
+<!-- Line 7 -->
+<div class="h-[19px] flex items-center pl-4">
+<span class="text-on-surface">results = []</span>
+</div>
+<!-- Line 8 -->
+<div class="h-[19px] flex items-center pl-4">
+<span class="text-secondary font-medium">for</span> idx, itm <span class="text-secondary font-medium">in</span> <span class="text-secondary font-medium">enumerate</span>(items):
+            </div>
+<!-- Line 9 -->
+<div class="h-[19px] flex items-center pl-8">
+<span class="text-secondary font-medium">try</span>:
+            </div>
+<!-- Line 10 -->
+<div class="h-[19px] flex items-center pl-12">
+<span class="text-on-surface">val = calculate_metrics(itm.ratio)</span>
+</div>
+<!-- Line 11 -->
+<div class="h-[19px] flex items-center pl-12">
+<span class="text-on-surface">results.append(val)</span>
+</div>
+<!-- Line 12 -->
+<div class="h-[19px] flex items-center pl-8">
+<span class="text-secondary font-medium">except</span> <span class="text-tertiary">Exception</span> <span class="text-secondary font-medium">as</span> err:
+            </div>
+<!-- Line 13 -->
+<div class="h-[19px] flex items-center pl-12">
+<span class="text-secondary font-medium">raise</span> err
+            </div>
+<!-- Line 14 -->
+<div class="h-[19px] flex items-center pl-4">
+<span class="text-secondary font-medium">return</span> results
+            </div>
+</div>
+</div>
+</div>
+</main>
+<!-- RIGHT PANEL: AgentScope AI Diagnostic Assistant (~28%) -->
+<aside class="w-80 2xl:w-96 bg-surface-container-low flex flex-col shrink-0 overflow-y-auto">
+<!-- Assistant Header -->
+<div class="p-space-sm bg-surface-container-lowest flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-primary-container flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined text-[15px]">smart_toy</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface leading-tight">AgentScope Copilot</span>
+<span class="font-label-sm text-[10px] text-tertiary">Llama-3-70b-versatile Online</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+          99% Cert
+        </span>
+</div>
+<div class="p-space-md flex flex-col gap-space-md">
+<!-- Root Cause Hypothesis Card -->
+<div class="p-space-sm rounded bg-surface-container flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase text-outline">Root Cause Hypothesis</span>
+<span class="px-1.5 py-0.2 rounded bg-tertiary-container/20 text-tertiary font-label-sm text-[10px]">Verified Static/Dynamic</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface leading-snug">
+            Denominator literal <code class="text-primary font-code-compact text-code-compact">b = 0</code> evaluates to zero at execution point before division expression is dispatched in runtime frame.
+          </p>
+<div class="p-2 rounded bg-surface-container-lowest flex flex-col gap-1 font-code-compact text-code-compact">
+<div class="text-tertiary flex items-center gap-1 text-[11px]">
+<span class="material-symbols-outlined text-[13px]">check_circle</span>
+<span>[CONFIRMED FACT]</span>
+</div>
+<span class="text-on-surface-variant text-[11px]">
+              Variable <strong class="text-on-surface">b</strong> assigned literal 0 at <span class="text-primary">test.py:2</span>. No guard clause exists.
+            </span>
+</div>
+</div>
+<!-- Recommended Diagnostic Step -->
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-outline uppercase">Diagnostic Prescriptive</span>
+<div class="p-space-sm rounded bg-surface-container flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-[18px] shrink-0">lightbulb</span>
+<span class="font-body-sm text-body-sm text-on-surface">
+              Wrap arithmetic with a defensive divisor non-zero check or substitute fallback scale factor.
+            </span>
+</div>
+</div>
+<!-- Proposed Code Diff -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase">Proposed Patch Diff</span>
+<!-- Human-in-the-Loop Governance -->
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant">
+              Suggested — Not Verified
+            </span>
+</div>
+<div class="rounded bg-surface-container-lowest overflow-hidden font-code-compact text-code-compact">
+<div class="px-2 py-1 bg-surface-container text-outline flex items-center justify-between text-[10px]">
+<span>@@ -2,3 +2,6 @@ test.py</span>
+<span>Diff Preview</span>
+</div>
+<div class="p-2 flex flex-col gap-0.5">
+<div class="text-error bg-error-container/20 px-1 rounded line-through">
+                - print(a / b)
+              </div>
+<div class="text-tertiary bg-tertiary-container/15 px-1 rounded">
+                + if b != 0:
+              </div>
+<div class="text-tertiary bg-tertiary-container/15 px-1 rounded pl-3">
+                +     print(a / b)
+              </div>
+<div class="text-tertiary bg-tertiary-container/15 px-1 rounded">
+                + else:
+              </div>
+<div class="text-tertiary bg-tertiary-container/15 px-1 rounded pl-3">
+                +     print("Zero division intercepted; b = 0")
+              </div>
+</div>
+</div>
+</div>
+<!-- Action Dispatchers -->
+<div class="flex flex-col gap-2 pt-2">
+<button class="w-full py-2 px-space-sm rounded bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-sm text-label-sm font-semibold flex items-center justify-center gap-2 transition-colors" id="verifySandboxBtn">
+<span class="material-symbols-outlined text-[15px] text-primary">play_circle</span>
+<span>Run Sandbox Verification</span>
+</button>
+<button class="w-full py-2 px-space-sm rounded bg-primary-container text-on-primary-container font-label-sm text-label-sm font-semibold flex items-center justify-center gap-2 hover:brightness-110 shadow-[0_0_12px_rgba(53,214,242,0.3)] transition-all" id="approvePatchBtn">
+<span class="material-symbols-outlined text-[15px]">done_all</span>
+<span>Approve &amp; Apply to VS Code</span>
+</button>
+</div>
+</div>
+</aside>
+</div>
+<!-- BOTTOM DOCK: Collapsible Runtime Terminal & Output Console (~180px) -->
+<section class="h-44 bg-surface-container-lowest flex flex-col shrink-0 transition-[height] duration-200 ease-in-out" id="bottomDock">
+<!-- Dock Navigation Tabs -->
+<div class="h-8 bg-surface-container-low flex items-center justify-between px-space-sm shrink-0">
+<div class="flex items-center h-full gap-0.5">
+<button class="h-full px-space-md bg-surface-container-lowest text-primary font-label-sm text-label-sm flex items-center gap-1.5 font-medium">
+<span class="material-symbols-outlined text-[13px]">terminal</span>
+<span>Terminal / Runtime Logs</span>
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+</button>
+<button class="h-full px-space-md text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[13px]">bug_report</span>
+<span>Stack Trace (1)</span>
+</button>
+<button class="h-full px-space-md text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[13px]">output</span>
+<span>Execution Output</span>
+</button>
+<button class="h-full px-space-md text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[13px]">fact_check</span>
+<span>Test Results</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-code-compact text-code-compact text-error flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">cancel</span>
+          Exit code 1 (SIGABRT)
+        </span>
+<button class="text-outline hover:text-on-surface p-1 rounded hover:bg-surface-container transition-colors" id="minimizeDockBtn">
+<span class="material-symbols-outlined text-[15px]">keyboard_arrow_down</span>
+</button>
+</div>
+</div>
+<!-- Terminal Output Stream -->
+<div class="flex-1 p-space-sm font-code-compact text-code-compact overflow-y-auto bg-surface-container-lowest flex flex-col gap-1 text-on-surface">
+<div class="text-outline">$ /usr/local/bin/python3 /workspace/backend-api/test.py</div>
+<div class="text-on-surface-variant">Traceback (most recent call last):</div>
+<div class="pl-4 text-on-surface-variant">
+        File <span class="text-primary">"/workspace/backend-api/test.py"</span>, line 3, in <span class="text-secondary">&lt;module&gt;</span>
+</div>
+<div class="pl-8 text-on-surface">print(a / b)</div>
+<div class="text-error font-semibold flex items-center gap-1 pt-0.5">
+<span class="material-symbols-outlined text-[14px]">error</span>
+        ZeroDivisionError: division by zero
+      </div>
+<div class="text-outline text-[10px] mt-1 pt-1 bg-surface-container/30 px-2 py-0.5 rounded flex items-center justify-between">
+<span>[AgentScope Telemetry Hook] Frame memory serialized to /tmp/eyra_probe_84920.dmp</span>
+<span class="text-tertiary">ScopeBot Attached</span>
+</div>
+</div>
+</section>
+</div>
+<script>
+  (function () {
+    const bottomDock = document.getElementById('bottomDock');
+    const toggleBottomDockBtn = document.getElementById('toggleBottomDockBtn');
+    const minimizeDockBtn = document.getElementById('minimizeDockBtn');
+    const verifySandboxBtn = document.getElementById('verifySandboxBtn');
+    const approvePatchBtn = document.getElementById('approvePatchBtn');
+
+    let isDockCollapsed = false;
+
+    function toggleDock() {
+      isDockCollapsed = !isDockCollapsed;
+      if (isDockCollapsed) {
+        bottomDock.style.height = '32px';
+        minimizeDockBtn.querySelector('.material-symbols-outlined').textContent = 'keyboard_arrow_up';
+      } else {
+        bottomDock.style.height = '11rem'; // 176px default
+        minimizeDockBtn.querySelector('.material-symbols-outlined').textContent = 'keyboard_arrow_down';
+      }
+    }
+
+    if (toggleBottomDockBtn) toggleBottomDockBtn.addEventListener('click', toggleDock);
+    if (minimizeDockBtn) minimizeDockBtn.addEventListener('click', toggleDock);
+
+    if (verifySandboxBtn) {
+      verifySandboxBtn.addEventListener('click', function () {
+        const originalContent = this.innerHTML;
+        this.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-spin text-primary">progress_activity</span><span>Executing Isolated Sandbox...</span>';
+        setTimeout(() => {
+          this.innerHTML = '<span class="material-symbols-outlined text-[15px] text-tertiary">check_circle</span><span>0 Errors Detected (Passed)</span>';
+          this.classList.add('bg-tertiary-container/20', 'text-tertiary');
+        }, 1200);
+      });
+    }
+
+    if (approvePatchBtn) {
+      approvePatchBtn.addEventListener('click', function () {
+        const originalText = this.innerHTML;
+        this.innerHTML = '<span class="material-symbols-outlined text-[15px]">check</span><span>Patch Applied to test.py</span>';
+        this.classList.remove('bg-primary-container');
+        this.classList.add('bg-tertiary', 'text-on-tertiary');
+        setTimeout(() => {
+          this.innerHTML = originalText;
+          this.classList.remove('bg-tertiary', 'text-on-tertiary');
+          this.classList.add('bg-primary-container');
+        }, 3000);
+      });
+    }
+  })();
+</script>

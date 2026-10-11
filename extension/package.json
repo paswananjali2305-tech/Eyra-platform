@@ -1,0 +1,36 @@
+{
+  "name": "eyra-eyes",
+  "displayName": "EYRA Eyes",
+  "description": "Minimal VS Code Eyes client for EYRA Brain (runtime context → FastAPI).",
+  "version": "1.2.0",
+  "publisher": "eyra",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:eyra.analyzeActiveEditor"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "eyra.analyzeActiveEditor",
+        "title": "EYRA: Analyze Active Editor Context"
+      }
+    ],
+    "configuration": {
+      "title": "EYRA Eyes",
+      "properties": {
+        "eyra.backendUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "EYRA Brain FastAPI base URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node -e \"require('fs').accessSync('./src/extension.js'); console.log('extension JS ready')\""
+  }
+}

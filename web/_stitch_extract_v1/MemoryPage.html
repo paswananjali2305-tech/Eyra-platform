@@ -1,0 +1,440 @@
+<div class="flex flex-col w-full">
+<!-- Knowledge Workspace Header Banner -->
+<div class="w-full px-space-lg py-space-md bg-surface-container-lowest flex flex-col gap-space-sm relative overflow-hidden">
+<div class="absolute right-0 top-0 w-96 h-full bg-gradient-to-l from-primary/5 via-secondary/5 to-transparent pointer-events-none"></div>
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md relative z-10">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs text-outline font-label-sm text-label-sm uppercase tracking-wider">
+<span>Engine Knowledge Base</span>
+<span>/</span>
+<span class="text-primary font-mono">sqlite_v3_session.db</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface font-semibold tracking-tight mt-0.5">
+          Memory &amp; Knowledge
+        </h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-3xl mt-0.5">
+          Persistent runtime intelligence, confirmed resolutions, recurring error patterns, and codebase audit findings.
+        </p>
+</div>
+<!-- Dual Index Status Telemetry Pills -->
+<div class="flex flex-wrap sm:flex-nowrap items-center gap-space-xs shrink-0">
+<div class="flex items-center gap-2 px-space-sm py-1.5 rounded bg-surface-container-low shadow-sm">
+<span class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_rgba(108,249,187,0.4)] animate-pulse"></span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-medium">Runtime Memory</span>
+<span class="font-code-compact text-code-compact text-tertiary leading-tight">SQLite AST Index (142 patterns indexed)</span>
+</div>
+</div>
+<div class="flex items-center gap-2 px-space-sm py-1.5 rounded bg-surface-container-low shadow-sm">
+<span class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(156,237,255,0.4)]"></span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-medium">Audit Knowledge</span>
+<span class="font-code-compact text-code-compact text-primary leading-tight">AST Rulebase &amp; CVE Index (312 rules active)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Live Filter Bar & Facets -->
+<div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-space-sm pt-space-xs">
+<div class="flex flex-wrap items-center gap-1.5">
+<button class="px-2.5 py-1 rounded font-label-sm text-label-sm font-semibold bg-primary-container text-on-primary-container shadow-sm transition-all" id="pill-all">All Records</button>
+<button class="px-2.5 py-1 rounded font-label-sm text-label-sm text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors" id="pill-runtime">Runtime Sessions</button>
+<button class="px-2.5 py-1 rounded font-label-sm text-label-sm text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors" id="pill-audit">Audit Patterns</button>
+<button class="px-2.5 py-1 rounded font-label-sm text-label-sm text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors" id="pill-security">Security Rules</button>
+<span class="text-outline-variant px-1 select-none">|</span>
+<button class="flex items-center gap-1 px-2 py-1 rounded font-label-sm text-label-sm bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+<span>Project: backend-api</span>
+<span class="material-symbols-outlined text-[13px] text-outline">expand_more</span>
+</button>
+<button class="flex items-center gap-1 px-2 py-1 rounded font-label-sm text-label-sm bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors">
+<span>Lang: Python / Cython</span>
+<span class="material-symbols-outlined text-[13px] text-outline">expand_more</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<div class="relative w-full md:w-72">
+<span class="material-symbols-outlined absolute left-2 top-1.5 text-[15px] text-outline pointer-events-none">filter_list</span>
+<input class="w-full pl-7 pr-8 py-1 rounded bg-surface-container-low font-code-compact text-code-compact text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container transition-colors" placeholder="Filter AST nodes, errors, rules..." type="text"/>
+<span class="absolute right-2 top-1 font-label-sm text-label-sm text-outline">⌘F</span>
+</div>
+<button class="p-1 rounded bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Sync SQLite Store">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Two-Column Architecture Workspace -->
+<div class="w-full grid grid-cols-1 lg:grid-cols-12 gap-space-sm p-space-md">
+<!-- LEFT COLUMN: Indexed Records List (~35% -> col-span-5/col-span-4 on ultra) -->
+<div class="lg:col-span-5 flex flex-col gap-space-sm min-w-0">
+<!-- Telemetry Status Ribbon -->
+<div class="p-space-sm rounded bg-surface-container-lowest flex items-center justify-between text-on-surface-variant shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<div class="flex items-baseline gap-1.5 font-code-compact text-code-compact">
+<span class="font-medium text-on-surface">SQLite 3.45</span>
+<span class="text-outline">4.2 MB</span>
+</div>
+</div>
+<div class="flex items-center gap-space-xs font-label-sm text-label-sm">
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high text-secondary">WAL MODE</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high text-tertiary">99.8% CACHE HIT</span>
+</div>
+</div>
+<!-- Record List Container -->
+<div class="flex flex-col gap-space-xs bg-surface-container-lowest p-space-xs rounded shadow-sm">
+<!-- Category Header: Runtime Debugging Patterns -->
+<div class="flex items-center justify-between px-space-sm pt-space-xs pb-1">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-primary">psychology</span>
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Runtime Debugging Patterns</span>
+</div>
+<span class="font-code-compact text-code-compact text-primary px-1 rounded bg-surface-container-high">3 of 142</span>
+</div>
+<!-- Rec #0042 (ACTIVE SELECTED ITEM) -->
+<div class="p-space-sm rounded bg-surface-container-high cursor-pointer shadow-md transition-all relative" id="item-0042">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary-container rounded-l"></div>
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="font-code-compact text-code-compact font-semibold text-primary">#0042</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-on-surface truncate">ZeroDivisionError</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-tertiary-container/20 text-tertiary shrink-0">VERIFIED</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-1">
+            Defensive divisor guard via dynamic divisor normalization
+          </p>
+<div class="flex items-center justify-between mt-2 pt-1.5 font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-2">
+<span class="text-tertiary font-mono">99.1% match</span>
+<span>•</span>
+<span>4 occurrences</span>
+</div>
+<span class="font-code-compact text-code-compact text-on-surface-variant">2 projects</span>
+</div>
+</div>
+<!-- Rec #0038 -->
+<div class="p-space-sm rounded bg-surface-container hover:bg-surface-container-high cursor-pointer transition-all">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="font-code-compact text-code-compact font-semibold text-outline">#0038</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">Redis Socket Disconnect</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-tertiary-container/20 text-tertiary shrink-0">VERIFIED</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-1">
+            Exponential jitter backoff with socket timeout reconnect pipeline
+          </p>
+<div class="flex items-center justify-between mt-2 pt-1.5 font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-2">
+<span class="text-tertiary font-mono">94.3% match</span>
+<span>•</span>
+<span>7 occurrences</span>
+</div>
+<span class="font-code-compact text-code-compact text-on-surface-variant">prod-cluster</span>
+</div>
+</div>
+<!-- Rec #0019 -->
+<div class="p-space-sm rounded bg-surface-container hover:bg-surface-container-high cursor-pointer transition-all">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="font-code-compact text-code-compact font-semibold text-outline">#0019</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">KeyError on Payload Dict</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-tertiary-container/20 text-tertiary shrink-0">VERIFIED</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-1">
+            Conversion of unvalidated subscription dict to dict.get(key, fallback)
+          </p>
+<div class="flex items-center justify-between mt-2 pt-1.5 font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-2">
+<span class="text-tertiary font-mono">98.7% match</span>
+<span>•</span>
+<span>12 occurrences</span>
+</div>
+<span class="font-code-compact text-code-compact text-on-surface-variant">backend-api</span>
+</div>
+</div>
+<!-- Category Header: Related Codebase Audit Patterns -->
+<div class="flex items-center justify-between px-space-sm pt-space-md pb-1 mt-1">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-secondary">verified_user</span>
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Codebase Audit Patterns</span>
+</div>
+<span class="font-code-compact text-code-compact text-secondary px-1 rounded bg-surface-container-high">2 of 312</span>
+</div>
+<!-- Audit #A-108 -->
+<div class="p-space-sm rounded bg-surface-container hover:bg-surface-container-high cursor-pointer transition-all">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="font-code-compact text-code-compact font-semibold text-secondary">#A-108</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">Unsanitized SQL in Repo</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-secondary-container/40 text-secondary shrink-0">PATCH APPROVED</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-1">
+            Rule PY-SEC-04: Parameterized clause enforcement via SQLAlchemy engine
+          </p>
+<div class="flex items-center justify-between mt-2 pt-1.5 font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-2">
+<span class="text-secondary font-mono">PY-SEC-04</span>
+<span>•</span>
+<span>3 occurrences</span>
+</div>
+<span class="font-code-compact text-code-compact text-on-surface-variant">security-scan</span>
+</div>
+</div>
+<!-- Audit #A-094 -->
+<div class="p-space-sm rounded bg-surface-container hover:bg-surface-container-high cursor-pointer transition-all">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="font-code-compact text-code-compact font-semibold text-secondary">#A-094</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">Incomplete Async Webhook</span>
+</div>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant shrink-0">REVIEW PENDING</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-1">
+            Rule PY-CODE-12: Unawaited coroutine in FastAPI background worker thread
+          </p>
+<div class="flex items-center justify-between mt-2 pt-1.5 font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-2">
+<span class="text-secondary font-mono">PY-CODE-12</span>
+<span>•</span>
+<span>5 occurrences</span>
+</div>
+<span class="font-code-compact text-code-compact text-on-surface-variant">audit-queue</span>
+</div>
+</div>
+</div>
+<!-- Compact SQLite Memory Stats Summary -->
+<div class="p-space-sm rounded bg-surface-container-lowest text-on-surface-variant flex flex-col gap-2">
+<div class="flex items-center justify-between font-label-sm text-label-sm">
+<span class="text-outline uppercase">SQLite Storage Engine</span>
+<span class="text-tertiary">Indexed OK</span>
+</div>
+<div class="grid grid-cols-3 gap-1.5">
+<div class="p-1.5 rounded bg-surface-container-low text-center">
+<div class="font-code-compact text-code-compact text-on-surface font-semibold">142</div>
+<div class="font-label-sm text-label-sm text-outline">Runtime Asts</div>
+</div>
+<div class="p-1.5 rounded bg-surface-container-low text-center">
+<div class="font-code-compact text-code-compact text-on-surface font-semibold">312</div>
+<div class="font-label-sm text-label-sm text-outline">Rulesets</div>
+</div>
+<div class="p-1.5 rounded bg-surface-container-low text-center">
+<div class="font-code-compact text-code-compact text-primary font-semibold">0.4ms</div>
+<div class="font-label-sm text-label-sm text-outline">P95 Lookup</div>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN: Knowledge Detail View (~65% -> col-span-7) -->
+<div class="lg:col-span-7 flex flex-col gap-space-sm min-w-0">
+<!-- Detail Card Canvas -->
+<div class="bg-surface-container-lowest rounded p-space-lg flex flex-col gap-space-lg shadow-xl relative">
+<!-- Record Header & Quick Actions -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-sm bg-surface-container-low/40 p-space-sm rounded">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-8 h-8 rounded bg-primary-container flex items-center justify-center text-on-primary-container shadow-sm font-semibold font-mono text-sm">
+              42
+            </div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface truncate">ZeroDivisionError Pattern</span>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-tertiary-container/20 text-tertiary font-semibold uppercase">Canonical</span>
+</div>
+<span class="font-code-compact text-code-compact text-outline truncate">Record #0042 • Python 3.11 AST Engine • Confirmed Resolution</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+<button class="flex items-center gap-1 px-2.5 py-1.5 rounded bg-primary text-on-primary font-label-sm text-label-sm font-semibold hover:bg-primary-fixed-dim transition-all shadow-sm" id="copy-solution-btn">
+<span class="material-symbols-outlined text-[15px]">content_copy</span>
+<span>Copy Fix</span>
+</button>
+<button class="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors" title="Export Pattern JSON">
+<span class="material-symbols-outlined text-[16px]">file_download</span>
+</button>
+</div>
+</div>
+<!-- Section 1: Canonical Error Signature & AST Token Match -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-primary font-mono">01 //</span>
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Canonical Error Signature &amp; AST Token Match</h2>
+</div>
+<span class="font-code-compact text-code-compact text-tertiary font-semibold">99.1% Confidence Score</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-xs mt-1">
+<!-- Exact Error Fingerprint -->
+<div class="p-space-sm rounded bg-surface-container flex flex-col gap-1.5">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Normalized Exception Fingerprint</span>
+<div class="font-code-compact text-code-compact p-2 rounded bg-surface-container-lowest text-error font-medium">
+                ZeroDivisionError: float division by zero
+              </div>
+<div class="flex items-center justify-between font-label-sm text-label-sm text-outline mt-1">
+<span>Callsite Node: <code class="text-on-surface font-mono">ast.BinOp(op=ast.Div())</code></span>
+<span>Scope: <code class="text-on-surface font-mono">def compute_weight</code></span>
+</div>
+</div>
+<!-- AST Token Topology -->
+<div class="p-space-sm rounded bg-surface-container flex flex-col gap-1.5">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">SQLite AST Fingerprint Hashes</span>
+<div class="font-code-compact text-code-compact p-2 rounded bg-surface-container-lowest text-secondary font-mono truncate">
+                sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1f
+              </div>
+<div class="flex items-center justify-between font-label-sm text-label-sm text-outline mt-1">
+<span>Normalized Tokens: <span class="text-primary font-mono">18 nodes</span></span>
+<span>Structure: <span class="text-on-surface font-mono">TryExceptGuard</span></span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 2: Stored Root Cause Knowledge & Why It Happened -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-primary font-mono">02 //</span>
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Stored Root Cause Knowledge</h2>
+</div>
+<div class="p-space-md rounded bg-surface-container flex flex-col gap-space-sm text-on-surface-variant font-body-sm text-body-sm">
+<p>
+              In batch inference workloads, input sample weights calculate total sum normalization. When batch sizes shrink to 0 or incoming tensors contain purely zero-valued denominators (<code class="font-mono text-primary text-code-compact">total_weight == 0.0</code>), the reduction function directly invoked raw binary division operator <code class="font-mono text-primary text-code-compact">/</code> without fallback threshold protection.
+            </p>
+<div class="p-space-sm rounded bg-surface-container-lowest flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-[18px] text-tertiary shrink-0 mt-0.5">lightbulb</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">Engine Remediation Consensus</span>
+<span class="text-on-surface-variant">Inject epsilon threshold guard <code class="text-tertiary font-mono">eps = 1e-7</code> or defensive conditional return when <code class="text-tertiary font-mono">denominator &lt;= 0</code> before calculation pipeline proceeds.</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 3: Verified Fix Template with Copyable Snippet -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-primary font-mono">03 //</span>
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Verified Fix Template</h2>
+</div>
+<span class="font-label-sm text-label-sm text-outline font-mono">guard_template.py</span>
+</div>
+<div class="rounded bg-surface-container-lowest overflow-hidden shadow-inner flex flex-col">
+<div class="px-space-sm py-1.5 bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-1">
+<span class="w-2.5 h-2.5 rounded-full bg-error/80"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-secondary/80"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary/80"></span>
+</div>
+<span class="font-code-compact text-code-compact text-on-surface-variant font-medium">services/pipeline/guard_template.py</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary">Python 3.11</span>
+</div>
+<!-- Syntax Display -->
+<pre class="p-space-md font-code-body text-code-body text-on-surface overflow-x-auto leading-relaxed select-text"><span class="text-outline"># EYRA Automated Patch Strategy: Divisor Guard Normalization</span>
+<span class="text-primary font-semibold">def</span> <span class="text-tertiary font-semibold">calculate_normalized_metric</span>(dividend: <span class="text-secondary">float</span>, divisor: <span class="text-secondary">float</span>, epsilon: <span class="text-secondary">float</span> = <span class="text-primary">1e-7</span>) -&gt; <span class="text-secondary">float</span>:
+    <span class="text-outline">"""Defensive AST guard against ZeroDivisionError in batch aggregation."""</span>
+    <span class="text-primary font-semibold">if</span> abs(divisor) &lt; epsilon:
+        <span class="text-outline"># Fallback to zero metric or baseline threshold when divisor decays</span>
+        logger.debug(<span class="text-tertiary">"Zero divisor detected; applying defensive fallback"</span>, extra={<span class="text-secondary">"divisor"</span>: divisor})
+        <span class="text-primary font-semibold">return</span> <span class="text-primary">0.0</span>
+    
+    <span class="text-primary font-semibold">return</span> dividend / divisor</pre>
+</div>
+</div>
+<!-- Section 4: Cross-References -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-primary font-mono">04 //</span>
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Connected Cross-References</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-space-xs mt-1">
+<!-- Ref 1 -->
+<div class="p-space-sm rounded bg-surface-container flex flex-col gap-1 hover:bg-surface-container-high transition-colors cursor-pointer">
+<div class="flex items-center justify-between">
+<span class="font-code-compact text-code-compact text-primary font-semibold">Session #0142</span>
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse" title="Live Active"></span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-medium truncate">Current Runtime Triage</span>
+<span class="font-label-sm text-label-sm text-outline">Active 12m ago • backend-api</span>
+</div>
+<!-- Ref 2 -->
+<div class="p-space-sm rounded bg-surface-container flex flex-col gap-1 hover:bg-surface-container-high transition-colors cursor-pointer">
+<div class="flex items-center justify-between">
+<span class="font-code-compact text-code-compact text-outline font-semibold">Session #0042</span>
+<span class="font-label-sm text-label-sm text-outline">Archived</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-medium truncate">Initial Root Incident</span>
+<span class="font-label-sm text-label-sm text-outline">Resolved 18d ago • ingestion-svc</span>
+</div>
+<!-- Ref 3 -->
+<div class="p-space-sm rounded bg-surface-container flex flex-col gap-1 hover:bg-surface-container-high transition-colors cursor-pointer">
+<div class="flex items-center justify-between">
+<span class="font-code-compact text-code-compact text-secondary font-semibold">Audit #A-022</span>
+<span class="font-label-sm text-label-sm text-secondary">Static Rule</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-medium truncate">Codebase Finding</span>
+<span class="font-label-sm text-label-sm text-outline">AST Rule: Divisor Guard Missing</span>
+</div>
+</div>
+</div>
+<!-- Section 5: Retrieval Engine Transparency -->
+<div class="p-space-md rounded bg-surface-container-low flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-md mt-2">
+<div class="flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-[20px] text-primary shrink-0 mt-0.5">architecture</span>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm font-semibold text-on-surface">Retrieval Engine Transparency</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.2 rounded bg-surface-container-high text-primary">SQLite FTS5 + AST</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                Exact SQLite AST Token Normalization active. Semantic Embeddings planned for Q3 milestone.
+              </p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs shrink-0 self-end sm:self-auto">
+<div class="px-2.5 py-1 rounded bg-surface-container-high text-outline font-label-sm text-label-sm">
+              Vector Roadmapped: Q3
+            </div>
+<div class="px-2.5 py-1 rounded bg-tertiary-container/20 text-tertiary font-label-sm text-label-sm font-medium">
+              Deterministic AST Active
+            </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Interactive script for filter switching & copy button feedback -->
+<script>
+    (function() {
+      const copyBtn = document.getElementById('copy-solution-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const originalText = copyBtn.innerHTML;
+          navigator.clipboard?.writeText(`def calculate_normalized_metric(dividend: float, divisor: float, epsilon: float = 1e-7) -> float:\n    if abs(divisor) < epsilon:\n        return 0.0\n    return dividend / divisor`);
+          copyBtn.innerHTML = '<span class="material-symbols-outlined text-[15px]">check</span><span>Copied!</span>';
+          setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+          }, 2000);
+        });
+      }
+
+      // Filter Pill State Toggles
+      const pills = ['pill-all', 'pill-runtime', 'pill-audit', 'pill-security'];
+      pills.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', () => {
+            pills.forEach(pId => {
+              const other = document.getElementById(pId);
+              if (other) {
+                other.className = 'px-2.5 py-1 rounded font-label-sm text-label-sm text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors';
+              }
+            });
+            el.className = 'px-2.5 py-1 rounded font-label-sm text-label-sm font-semibold bg-primary-container text-on-primary-container shadow-sm transition-all';
+          });
+        });
+      });
+    })();
+  </script>
+</div>

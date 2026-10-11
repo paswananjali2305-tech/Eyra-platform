@@ -1,0 +1,294 @@
+<div class="flex flex-col w-full">
+<div class="px-space-xl py-space-lg flex flex-col gap-space-lg">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col gap-space-2xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Settings &amp; Infrastructure</span>
+<span class="text-outline-variant font-code-compact text-code-compact">/</span>
+<span class="font-code-compact text-code-compact text-outline">runtime-config.json</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface font-semibold tracking-tight">Configuration &amp; Projects</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-3xl">
+          Manage EYRA Brain backend connection, Eyes VS Code extension, Groq LLM integration, and SQLite memory preferences.
+        </p>
+</div>
+<div class="flex items-center gap-space-xs self-start md:self-auto shrink-0">
+<button class="h-8 px-space-md rounded bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-sm text-label-sm transition-all flex items-center gap-1.5 shadow-sm" id="btn-reset">
+<span class="material-symbols-outlined text-[15px]">restart_alt</span>
+<span>Reset to Defaults</span>
+</button>
+<button class="h-8 px-space-md rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim transition-all flex items-center gap-1.5 font-label-sm text-label-sm font-semibold shadow-[0_0_14px_rgba(53,214,242,0.25)]" id="btn-save">
+<span class="material-symbols-outlined text-[15px]">check</span>
+<span>Save Configuration Changes</span>
+</button>
+</div>
+</div>
+<!-- Micro Navigation Tabs -->
+<div class="flex items-center gap-space-xs bg-surface-container-lowest p-1 rounded">
+<button class="nav-tab active-tab px-space-md py-1.5 rounded font-label-md text-label-md text-on-surface bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-primary">dns</span>
+<span>General &amp; Backend</span>
+</button>
+<button class="nav-tab px-space-md py-1.5 rounded font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container/60 transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-secondary">extension</span>
+<span>Eyes VS Code Extension</span>
+</button>
+<button class="nav-tab px-space-md py-1.5 rounded font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container/60 transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-tertiary">bolt</span>
+<span>Groq Reasoning LLM</span>
+</button>
+<button class="nav-tab px-space-md py-1.5 rounded font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container/60 transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-outline">shield</span>
+<span>Data &amp; Privacy</span>
+</button>
+</div>
+<!-- Main Configuration Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
+<!-- Left Column: Backend & VSCode Plugin -->
+<div class="lg:col-span-7 flex flex-col gap-space-md">
+<!-- Section 1: Backend API Connection (EYRA Brain) -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex flex-col gap-space-md shadow-md relative overflow-hidden">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined text-[18px]">terminal</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold leading-tight">Backend API Connection (EYRA Brain)</span>
+<span class="font-code-compact text-code-compact text-outline leading-tight">FastAPI Core Daemon RPC</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-tertiary-container/15 text-tertiary">SOCKET 200 OK</span>
+</div>
+<!-- Connected Status Banner -->
+<div class="bg-surface-container-lowest rounded p-space-sm flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary animate-pulse shrink-0"></span>
+<span class="font-code-compact text-code-compact text-on-surface">Connected • HTTP 200 OK</span>
+</div>
+<div class="flex items-center gap-space-sm font-code-compact text-code-compact">
+<span class="text-outline">Latency:</span>
+<span class="text-tertiary font-medium">12ms</span>
+</div>
+</div>
+<!-- Form inputs -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant flex items-center justify-between">
+<span>ENDPOINT RPC URL</span>
+<span class="font-code-compact text-code-compact text-outline">HTTP/2 TLS</span>
+</label>
+<div class="flex gap-space-xs">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[15px] text-outline">link</span>
+<input class="w-full pl-8 pr-3 py-1.5 bg-surface-container-lowest rounded font-code-body text-code-body text-on-surface focus:outline-none focus:ring-1 focus:ring-primary-container" id="api-endpoint" type="text" value="http://localhost:8000"/>
+</div>
+<button class="h-8 px-space-md rounded bg-surface-container-high hover:bg-surface-bright text-primary font-label-sm text-label-sm flex items-center gap-1 transition-colors" id="test-connection-btn">
+<span class="material-symbols-outlined text-[14px]">sensors</span>
+<span id="test-connection-text">Test Connection</span>
+</button>
+</div>
+</div>
+<!-- Diagnostic Check Matrix -->
+<div class="bg-surface-container-lowest/70 rounded p-space-sm flex flex-col gap-space-2xs">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Health Check Diagnostics</span>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-xs pt-1">
+<div class="flex items-center gap-2 font-code-compact text-code-compact text-on-surface">
+<span class="material-symbols-outlined text-[15px] text-tertiary">verified</span>
+<span>Pydantic schemas validated</span>
+</div>
+<div class="flex items-center gap-2 font-code-compact text-code-compact text-on-surface">
+<span class="material-symbols-outlined text-[15px] text-tertiary">check_circle</span>
+<span>SQLite driver operational</span>
+</div>
+<div class="flex items-center gap-2 font-code-compact text-code-compact text-on-surface">
+<span class="material-symbols-outlined text-[15px] text-tertiary">swap_horiz</span>
+<span>FastAPI WS route initialized</span>
+</div>
+<div class="flex items-center gap-2 font-code-compact text-code-compact text-on-surface">
+<span class="material-symbols-outlined text-[15px] text-tertiary">memory</span>
+<span>Async memory pool online</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 2: VS Code Extension (EYRA Eyes) -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-secondary shadow-sm">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold leading-tight">VS Code Extension (EYRA Eyes)</span>
+<span class="font-code-compact text-code-compact text-outline leading-tight">Local LSP Telemetry Probe</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-surface-container-highest text-secondary-fixed-dim">v1.2.0 (TypeScript)</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div class="bg-surface-container-lowest p-space-sm rounded flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-outline">EXTENSION STATUS</span>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-tertiary shrink-0"></span>
+<span class="font-code-compact text-code-compact text-on-surface truncate">Connected (Session socket active)</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-space-sm rounded flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-outline">ACTIVE EDITOR TARGET</span>
+<div class="flex items-center gap-1.5 truncate">
+<span class="material-symbols-outlined text-[15px] text-primary shrink-0">data_object</span>
+<span class="font-code-compact text-code-compact text-on-surface truncate">test.py <span class="text-outline">in</span> backend-core</span>
+</div>
+</div>
+</div>
+<!-- Feature Toggles -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<!-- Toggle 1 -->
+<label class="flex items-center justify-between p-space-sm rounded bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer select-none">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px] text-primary">terminal</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium leading-tight">Process Exit Capture</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant leading-tight">Capture terminal output on process exit code != 0</span>
+</div>
+</div>
+<input checked="" class="w-4 h-4 rounded bg-surface-container-lowest accent-primary cursor-pointer" type="checkbox"/>
+</label>
+<!-- Toggle 2 -->
+<label class="flex items-center justify-between p-space-sm rounded bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer select-none">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px] text-secondary">cable</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium leading-tight">Language Server Protocol Diagnostics</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant leading-tight">LSP diagnostics &amp; AST error streaming forwarding</span>
+</div>
+</div>
+<input checked="" class="w-4 h-4 rounded bg-surface-container-lowest accent-primary cursor-pointer" type="checkbox"/>
+</label>
+</div>
+</div>
+</div>
+<!-- Right Column: LLM & Privacy -->
+<div class="lg:col-span-5 flex flex-col gap-space-md">
+<!-- Section 3: Groq Reasoning LLM Configuration -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-tertiary shadow-sm">
+<span class="material-symbols-outlined text-[18px]">neurology</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold leading-tight">Groq Reasoning LLM</span>
+<span class="font-code-compact text-code-compact text-outline leading-tight">Fast Root Cause Diagnostic Engine</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-tertiary-container/15 text-tertiary">OPERATIONAL</span>
+</div>
+<!-- Latency Gauge Mini SVG -->
+<div class="bg-surface-container-lowest p-space-sm rounded flex items-center justify-between">
+<div class="flex flex-col gap-0.5">
+<span class="font-label-sm text-label-sm text-outline">AVERAGE INFERENCE LATENCY</span>
+<span class="font-code-body text-code-body text-tertiary font-semibold">480ms / prompt</span>
+</div>
+<div class="w-24 h-6">
+<svg class="w-full h-full text-tertiary" viewbox="0 0 100 24">
+<path d="M 0 18 Q 20 8 40 14 T 70 6 T 100 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<!-- Fields -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex flex-col gap-space-2xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">PROVIDER</label>
+<div class="px-space-sm py-1.5 bg-surface-container-lowest rounded font-code-compact text-code-compact text-on-surface flex items-center justify-between">
+<span>Groq Cloud API</span>
+<span class="text-tertiary font-label-sm text-label-sm">High-Throughput LPUs</span>
+</div>
+</div>
+<div class="flex flex-col gap-space-2xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">TARGET MODEL</label>
+<div class="relative">
+<select class="w-full px-space-sm py-1.5 bg-surface-container-lowest rounded font-code-body text-code-body text-on-surface appearance-none focus:outline-none focus:ring-1 focus:ring-primary-container pr-8 cursor-pointer">
+<option selected="">llama-3-70b-8192 (Reasoning &amp; Root Cause Engine)</option>
+<option>llama-3-8b-8192 (Low Latency Quick Diagnostic)</option>
+<option>mixtral-8x7b-32768 (Extended Context Analysis)</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[15px] text-outline pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-space-2xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant flex items-center justify-between">
+<span>GROQ API KEY</span>
+<span class="font-code-compact text-code-compact text-tertiary">Vault Protected</span>
+</label>
+<div class="relative">
+<input class="w-full px-space-sm py-1.5 bg-surface-container-lowest rounded font-code-body text-code-body text-on-surface font-mono tracking-widest focus:outline-none" readonly="" type="password" value="sk_groq_99a8182b819f727c98e104f"/>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[15px] text-outline cursor-pointer hover:text-on-surface">lock</span>
+</div>
+</div>
+<div class="flex flex-col gap-space-2xs">
+<div class="flex items-center justify-between">
+<label class="font-label-sm text-label-sm text-on-surface-variant">TEMPERATURE</label>
+<span class="font-code-compact text-code-compact text-primary">0.1 (Deterministic)</span>
+</div>
+<input class="w-full accent-primary h-1 bg-surface-container-highest rounded cursor-pointer" max="1" min="0" step="0.05" type="range" value="0.1"/>
+<span class="font-body-sm text-body-sm text-outline">Deterministic reasoning for repeatable root-cause stack traces.</span>
+</div>
+</div>
+</div>
+<!-- Section 4: Data Retention & Privacy Controls -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined text-[18px]">security</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold leading-tight">Data Retention &amp; Privacy</span>
+<span class="font-code-compact text-code-compact text-outline leading-tight">Zero Cloud Leaks Safeguard</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-primary-container/15 text-primary">STRICT LOCAL</span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<div class="flex flex-col gap-space-2xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">DATABASE PERSISTENCE PATH</label>
+<div class="px-space-sm py-1.5 bg-surface-container-lowest rounded font-code-body text-code-body text-on-surface flex items-center justify-between">
+<span class="truncate">~/.eyra/memory.sqlite</span>
+<span class="font-code-compact text-code-compact text-outline shrink-0 ml-2">SQLite 3.42</span>
+</div>
+</div>
+<!-- Lock Feature: Human in the loop -->
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-error">lock</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Auto-apply Code Changes</span>
+</div>
+<div class="px-2 py-0.5 rounded bg-error-container/30 text-error font-label-sm text-label-sm">DISABLED</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                Human-in-the-Loop enforced: Developer approval required before any code change is applied to local filesystem.
+              </p>
+</div>
+<div class="flex items-center justify-between p-space-sm rounded bg-surface-container">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[16px] text-outline">dns</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium leading-tight">Telemetry &amp; Logging</span>
+<span class="font-body-sm text-body-sm text-outline leading-tight">Diagnostic records saved strictly to local disk</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-primary px-2 py-0.5 rounded bg-surface-container-high">Local only</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Toast Placeholder for Interactions -->
+<div class="fixed bottom-6 right-6 hidden bg-surface-container-highest text-on-surface px-space-md py- space-sm rounded shadow-xl flex items-center gap-2 font-body-sm text-body-sm z-50" id="toast">
+<span class="material-symbols-outlined text-[18px] text-tertiary">check_circle</span>
+<span id="toast-msg">Settings saved successfully</span>
+</div>
+</div>
+</div>

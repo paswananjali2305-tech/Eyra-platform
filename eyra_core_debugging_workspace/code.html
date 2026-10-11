@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-primary-container": "#005967", "secondary": "#bbc3ff", "surface-bright": "#343946", "surface-container-low": "#161b27", "surface-container": "#1b1f2b", "tertiary-container": "#4bdca1", "surface": "#0e131e", "on-primary": "#00363f", "primary-fixed-dim": "#39d8f4", "on-secondary": "#001e91", "error": "#ffb4ab", "secondary-fixed-dim": "#bbc3ff", "on-error-container": "#ffdad6", "outline-variant": "#3c494c", "inverse-primary": "#006877", "surface-container-high": "#252a36", "on-secondary-container": "#a8b4ff", "tertiary-fixed": "#6ffbbe", "on-primary-fixed": "#001f25", "outline": "#859397", "surface-container-highest": "#303541", "on-tertiary": "#003824", "surface-variant": "#303541", "surface-container-lowest": "#090e19", "on-error": "#690005", "on-primary-fixed-variant": "#004e5a", "on-secondary-fixed": "#000f5c", "on-surface": "#dee2f2", "on-surface-variant": "#bbc9cd", "surface-tint": "#39d8f4", "primary": "#9cedff", "background": "#0e131e", "primary-container": "#35d6f2", "error-container": "#93000a", "tertiary": "#6cf9bb", "on-background": "#dee2f2", "primary-fixed": "a5eeff", "inverse-surface": "#dee2f2", "surface-dim": "#0e131e", "inverse-on-surface": "#2b303d", "secondary-fixed": "#dee0ff", "tertiary-fixed-dim": "#4edea3", "on-tertiary-fixed-variant": "#005236", "on-tertiary-fixed": "#002113", "on-tertiary-container": "#005d3f", "secondary-container": "#1b37be", "on-secondary-fixed-variant": "#1734bb" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "space-lg": "1rem", "gutter": "0.75rem", "space-sm": "0.5rem", "space-xl": "1.5rem", "space-xs": "0.25rem", "space-2xs": "0.125rem", "margin-panel": "0.75rem", "space-2xl": "2rem", "space-md": "0.75rem", "gutter-dense": "0.5rem", "margin": "1rem" }, "fontFamily": { "code-body": [ "JetBrains Mono" ], "label-sm": [ "JetBrains Mono" ], "body-md": [ "Inter" ], "body-sm": [ "Inter" ], "code-compact": [ "JetBrains Mono" ], "label-md": [ "JetBrains Mono" ], "display-lg": [ "Inter" ], "headline-md": [ "Inter" ], "headline-sm": [ "Inter" ], "headline-lg": [ "Inter" ], "body-lg": [ "Inter" ], "display-lg-mobile": [ "Inter" ] }, "fontSize": { "code-body": [ "12.5px", { "lineHeight": "19px", "letterSpacing": "0em", "fontWeight": "400" } ], "label-sm": [ "11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "500" } ], "body-md": [ "13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" } ], "body-sm": [ "12px", { "lineHeight": "16px", "letterSpacing": "0.005em", "fontWeight": "400" } ], "code-compact": [ "11px", { "lineHeight": "15px", "letterSpacing": "0em", "fontWeight": "400" } ], "label-md": [ "12px", { "lineHeight": "16px", "letterSpacing": "-0.01em", "fontWeight": "500" } ], "display-lg": [ "32px", { "lineHeight": "40px", "letterSpacing": "-0.025em", "fontWeight": "600" } ], "headline-md": [ "18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "headline-sm": [ "15px", { "lineHeight": "20px", "letterSpacing": "-0.005em", "fontWeight": "600" } ], "headline-lg": [ "22px", { "lineHeight": "28px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "body-lg": [ "14px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400" } ], "display-lg-mobile": [ "24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" } ] } } } };</script></head><body class="bg-background font-body-md text-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-60 bg-surface-container-lowest z-50 flex flex-col justify-between border-r border-outline-variant/30 select-none"><div class="flex flex-col min-h-0"><div class="px-space-md pt-space-md pb-space-sm border-b border-outline-variant/20"><div class="flex items-center justify-between"><div class="flex items-center gap-space-sm"><div class="w-6 h-6 rounded bg-primary-container flex items-center justify-center text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.35)]"><span class="material-symbols-outlined text-[16px]">terminal</span></div><div class="flex items-baseline gap-space-xs"><span class="font-headline-sm text-headline-sm text-on-surface font-semibold tracking-tight">EYRA</span><span class="font-label-sm text-label-sm text-primary px-1.5 py-0.5 rounded bg-surface-container-high border border-outline-variant/30">v0.9.4-beta</span></div></div></div><div class="mt-space-sm p-1.5 rounded bg-surface-container-low border border-outline-variant/30 flex items-center justify-between text-on-surface-variant hover:text-on-surface hover:border-outline transition-colors cursor-pointer"><div class="flex items-center gap-1.5 min-w-0"><span class="material-symbols-outlined text-[14px] text-primary shrink-0">deployed_code</span><div class="truncate font-code-compact text-code-compact"><span class="text-outline">default/</span>backend-api</div></div><span class="material-symbols-outlined text-[14px] text-outline shrink-0">unfold_more</span></div></div><div class="px-space-xs py-space-sm overflow-y-auto"><div class="px-space-sm py-1 font-label-sm text-label-sm text-outline uppercase tracking-wider">Runtime Telemetry</div><nav class="flex flex-col gap-space-2xs mt-1" data-active-classes="bg-surface-container-high text-primary border-l-2 border-primary-container font-medium"><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-body-sm text-body-sm" data-path="overview" href="#"><span class="material-symbols-outlined text-[17px]">grid_view</span><span>Overview</span></a><a aria-current="page" class="flex items-center justify-between px-space-sm py-1.5 rounded transition-colors bg-surface-container-high text-primary border-l-2 border-primary-container font-medium" data-path="workspace" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-[17px]">bug_report</span><span>Workspace</span></div><span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-tertiary-container/15 text-tertiary border border-tertiary/20">1 active</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-body-sm text-body-sm" data-path="analysis-results" href="#"><span class="material-symbols-outlined text-[17px]">description</span><span>Analysis Results</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-body-sm text-body-sm" data-path="investigation-history" href="#"><span class="material-symbols-outlined text-[17px]">history</span><span>Investigation History</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-body-sm text-body-sm" data-path="memory-and-knowledge" href="#"><span class="material-symbols-outlined text-[17px]">neurology</span><span>Memory &amp; Knowledge</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-body-sm text-body-sm" data-path="configuration-and-projects" href="#"><span class="material-symbols-outlined text-[17px]">tune</span><span>Configuration &amp; Projects</span></a></nav></div></div><div class="border-t border-outline-variant/30 p-space-sm bg-surface-container-lowest/80 flex flex-col gap-space-xs"><div class="p-1.5 rounded bg-surface-container-low border border-outline-variant/20 flex flex-col gap-1"><div class="flex items-center justify-between text-on-surface-variant font-code-compact text-code-compact"><div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span><span>FastAPI</span></div><span class="text-tertiary font-label-sm text-label-sm">localhost:8000</span></div><div class="flex items-center justify-between text-on-surface-variant font-code-compact text-code-compact"><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px] text-secondary">visibility</span><span>Eyes Ext</span></div><span class="text-outline font-label-sm text-label-sm">v1.2 active</span></div></div><div class="flex items-center justify-between p-1 rounded bg-surface-container/60 hover:bg-surface-container border border-outline-variant/20 transition-colors"><div class="flex items-center gap-space-xs min-w-0"><div class="w-7 h-7 rounded bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[15px]">person</span></div><div class="truncate"><div class="font-code-compact text-code-compact text-on-surface truncate leading-tight">alex.dev</div><div class="font-label-sm text-label-sm text-outline truncate leading-tight">Staff Eng</div></div></div><button aria-label="Account settings" class="text-outline hover:text-on-surface p-1 rounded hover:bg-surface-container-high transition-colors shrink-0"><span class="material-symbols-outlined text-[16px]">more_vert</span></button></div></div></aside><div class="pl-60 min-h-screen flex flex-col"><header class="fixed top-0 left-60 right-0 h-14 bg-surface-container-lowest/90 backdrop-blur border-b border-outline-variant/30 z-40 px-space-md flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-sm min-w-0"><div class="flex items-center gap-1 font-code-compact text-code-compact text-outline shrink-0"><span class="material-symbols-outlined text-[14px] text-primary">folder_open</span><span>workspace</span><span class="text-outline-variant">/</span><span class="text-on-surface">backend-api</span></div><div class="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 font-code-compact text-code-compact cursor-pointer hover:border-outline transition-colors text-on-surface"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span><span>prod-auth-cluster</span><span class="material-symbols-outlined text-[12px] text-outline ml-1">expand_more</span></div></div><div class="flex items-center gap-space-sm"><div class="hidden xl:flex items-center gap-1.5 px-2 py-1 rounded bg-tertiary-container/10 border border-tertiary-container/30 text-tertiary font-label-sm text-label-sm"><span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span><span>Groq Llama-3-70b Ready</span></div><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-2 text-[15px] text-outline pointer-events-none">search</span><input class="w-64 lg:w-72 pl-7 pr-12 py-1 bg-surface-container-lowest border border-outline-variant/40 rounded font-code-compact text-code-compact text-on-surface placeholder:text-outline focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all" placeholder="Search errors, traces, sessions..." type="text"/><kbd class="absolute right-2 px-1 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-outline font-label-sm text-label-sm pointer-events-none">⌘K</kbd></div><button class="h-7 px-space-sm rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim transition-all flex items-center gap-1 font-label-sm text-label-sm shadow-[0_0_12px_rgba(53,214,242,0.2)]"><span class="material-symbols-outlined text-[14px]">add</span><span>Analyze Error</span></button><button aria-label="Notifications" class="w-7 h-7 rounded border border-outline-variant/30 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors relative"><span class="material-symbols-outlined text-[16px]">notifications</span><span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-error"></span></button><div class="w-7 h-7 rounded bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[16px]">person</span></div></div></header><main class="w-full pt-14 bg-background min-h-screen"><div class="flex flex-col w-full">
+<!-- Top Workspace Context & Pipeline Ribbon -->
+<div class="w-full bg-surface-container-lowest px-space-md py-space-sm flex flex-col xl:flex-row items-start xl:items-center justify-between gap-space-sm">
+<!-- Target Incident Banner -->
+<div class="flex items-center flex-wrap gap-space-sm min-w-0">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-error-container/40 text-error shadow-sm">
+<span class="material-symbols-outlined text-[16px] text-error shrink-0">error</span>
+<span class="font-label-md text-label-md font-semibold tracking-tight">ZeroDivisionError: division by zero</span>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-container-high text-on-surface">
+<span class="material-symbols-outlined text-[13px] text-primary">description</span>
+<span class="font-code-compact text-code-compact font-medium">test.py:3</span>
+</div>
+<div class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-container-low text-on-surface-variant font-code-compact text-code-compact">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span>Python 3.11.8</span>
+<span class="text-outline">/</span>
+<span class="text-outline">PID 84920</span>
+</div>
+<div class="hidden 2xl:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-secondary-container/20 text-secondary font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[13px]">bolt</span>
+<span>Active Trace Capture</span>
+</div>
+</div>
+<!-- Telemetry Investigation Stages Stepper -->
+<div class="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 xl:pb-0">
+<!-- Step 1: Observe -->
+<div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm shrink-0">
+<span class="material-symbols-outlined text-[13px] text-tertiary font-bold">check_circle</span>
+<span>Observe</span>
+<span class="text-outline font-code-compact text-code-compact">(Eyes)</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline shrink-0">chevron_right</span>
+<!-- Step 2: Investigate -->
+<div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm shrink-0">
+<span class="material-symbols-outlined text-[13px] text-tertiary font-bold">check_circle</span>
+<span>Investigate</span>
+<span class="text-outline font-code-compact text-code-compact">(Ctx)</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline shrink-0">chevron_right</span>
+<!-- Step 3: Reason (Active) -->
+<div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-primary-container text-on-primary-container shadow-sm font-label-sm text-label-sm font-semibold shrink-0">
+<span class="material-symbols-outlined text-[13px] text-on-primary-container animate-pulse">bolt</span>
+<span>Reason</span>
+<span class="font-code-compact text-code-compact opacity-90">(Llama-3-70B)</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline shrink-0">chevron_right</span>
+<!-- Step 4: Verify -->
+<div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm shrink-0">
+<span class="material-symbols-outlined text-[13px] text-secondary">settings_suggest</span>
+<span>Verify</span>
+<span class="text-outline font-code-compact text-code-compact">(Sandbox)</span>
+</div>
+<span class="material-symbols-outlined text-[12px] text-outline shrink-0">chevron_right</span>
+<!-- Step 5: Report -->
+<div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-surface-container-lowest text-outline font-label-sm text-label-sm shrink-0">
+<span class="material-symbols-outlined text-[13px]">radio_button_unchecked</span>
+<span>Review</span>
+</div>
+</div>
+</div>
+<!-- Main 3-Panel Resizable Engineering Cockpit -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-sm p-space-md bg-background">
+<!-- PANEL 1: Runtime Context (32% width on desktop -> lg:col-span-4) -->
+<section class="lg:col-span-4 flex flex-col gap-space-sm">
+<div class="bg-surface-container-low rounded-xl flex flex-col shadow-sm overflow-hidden">
+<!-- Tab Bar -->
+<div class="bg-surface-container-lowest px-space-sm pt-space-xs flex items-center justify-between">
+<div class="flex items-center gap-space-2xs overflow-x-auto">
+<button class="flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg bg-surface-container-low text-primary font-label-sm text-label-sm font-medium" id="tab-src" onclick="switchLeftTab('src')">
+<span class="material-symbols-outlined text-[13px]">code</span>
+<span>Source Code</span>
+</button>
+<button class="flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors font-label-sm text-label-sm" id="tab-trace" onclick="switchLeftTab('trace')">
+<span class="material-symbols-outlined text-[13px]">account_tree</span>
+<span>Stack Trace</span>
+<span class="px-1 py-0.2 rounded-full bg-error-container/40 text-error font-code-compact text-code-compact">1</span>
+</button>
+<button class="flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors font-label-sm text-label-sm" id="tab-term" onclick="switchLeftTab('term')">
+<span class="material-symbols-outlined text-[13px]">terminal</span>
+<span>Terminal</span>
+</button>
+<button class="flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors font-label-sm text-label-sm" id="tab-diag" onclick="switchLeftTab('diag')">
+<span class="material-symbols-outlined text-[13px]">monitoring</span>
+<span>Diagnostics</span>
+</button>
+</div>
+<div class="flex items-center gap-1 pb-1">
+<span class="font-code-compact text-code-compact text-outline px-1">UTF-8</span>
+</div>
+</div>
+<!-- Code Viewer Frame -->
+<div class="bg-surface-container-lowest flex flex-col" id="pane-src-content">
+<div class="px-space-md py-1.5 bg-surface-container flex items-center justify-between text-outline">
+<div class="flex items-center gap-1 font-code-compact text-code-compact">
+<span class="text-outline-variant">workspace/</span>
+<span class="text-on-surface font-medium">test.py</span>
+</div>
+<span class="font-code-compact text-code-compact text-outline">Ln 3, Col 13</span>
+</div>
+<!-- Code Lines with Syntax Highlighting & Exception Annotation -->
+<div class="p-space-sm font-code-body text-code-body select-text flex flex-col gap-0.5">
+<!-- Line 1 -->
+<div class="flex items-center hover:bg-surface-container/60 rounded px-1 transition-colors">
+<span class="w-8 shrink-0 text-right pr-3 text-outline select-none font-code-compact text-code-compact">1</span>
+<div class="flex items-center gap-1">
+<span class="text-secondary">a</span>
+<span class="text-outline">=</span>
+<span class="text-tertiary">10</span>
+</div>
+</div>
+<!-- Line 2 -->
+<div class="flex items-center hover:bg-surface-container/60 rounded px-1 transition-colors">
+<span class="w-8 shrink-0 text-right pr-3 text-outline select-none font-code-compact text-code-compact">2</span>
+<div class="flex items-center gap-1">
+<span class="text-secondary">b</span>
+<span class="text-outline">=</span>
+<span class="text-tertiary">0</span>
+</div>
+</div>
+<!-- Line 3 - Trigger Line -->
+<div class="flex flex-col bg-error-container/20 rounded p-1">
+<div class="flex items-center">
+<span class="w-8 shrink-0 text-right pr-3 text-error font-semibold select-none font-code-compact text-code-compact">3</span>
+<div class="flex items-center gap-1">
+<span class="text-primary">print</span>
+<span class="text-on-surface">(</span>
+<span class="text-secondary">a</span>
+<span class="text-error font-bold">/</span>
+<span class="text-secondary">b</span>
+<span class="text-on-surface">)</span>
+</div>
+</div>
+<!-- Inlined Micro Marker -->
+<div class="ml-8 mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded bg-error-container/60 text-on-error-container font-code-compact text-code-compact">
+<span class="material-symbols-outlined text-[13px] text-error font-bold">cancel</span>
+<span class="font-medium text-error">ZeroDivisionError: division by zero</span>
+</div>
+</div>
+<!-- Line 4 -->
+<div class="flex items-center hover:bg-surface-container/60 rounded px-1 transition-colors">
+<span class="w-8 shrink-0 text-right pr-3 text-outline select-none font-code-compact text-code-compact">4</span>
+<span class="text-outline-variant italic"># following instructions...</span>
+</div>
+</div>
+</div>
+<!-- Collapsible Sub-Pane: Runtime Capture Logs -->
+<div class="bg-surface-container-low p-space-sm flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">data_object</span>
+<span>Captured Stack Trace Snippet</span>
+</div>
+<span class="font-code-compact text-code-compact px-1.5 py-0.5 rounded bg-surface-container text-tertiary">Live Hook</span>
+</div>
+<pre class="bg-surface-container-lowest p-space-sm rounded-lg text-on-surface-variant font-code-compact text-code-compact overflow-x-auto leading-relaxed">File <span class="text-secondary">"/app/test.py"</span>, line <span class="text-primary-fixed-dim">3</span>, in <span class="text-on-surface">&lt;module&gt;</span>
+    <span class="text-on-surface">print(a / b)</span>
+<span class="text-error font-semibold">ZeroDivisionError: division by zero</span></pre>
+<div class="flex flex-col gap-1 pt-1">
+<div class="flex items-center justify-between text-on-surface-variant font-code-compact text-code-compact">
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+<span>Exit Code:</span>
+</div>
+<span class="text-error font-medium">1 (SIGABRT)</span>
+</div>
+<div class="flex items-center justify-between text-outline font-code-compact text-code-compact">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-secondary">extension</span>
+<span>Context Source:</span>
+</div>
+<span class="text-on-surface-variant">EYRA Eyes VS Code Extension v1.2</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Runtime Context Metrics -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex flex-col gap-space-xs shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm">
+<span>Active Variable State at Frame [0]</span>
+<span class="font-code-compact text-code-compact text-primary">2 identifiers</span>
+</div>
+<div class="grid grid-cols-2 gap-space-xs font-code-compact text-code-compact">
+<div class="bg-surface-container-lowest p-2 rounded flex flex-col">
+<span class="text-outline">Variable <span class="text-secondary">a</span></span>
+<div class="flex items-baseline justify-between mt-1">
+<span class="text-on-surface font-semibold">10</span>
+<span class="text-outline-variant text-[10px]">int (64b)</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded flex flex-col">
+<span class="text-outline">Variable <span class="text-error">b</span></span>
+<div class="flex items-baseline justify-between mt-1">
+<span class="text-error font-semibold">0</span>
+<span class="text-outline-variant text-[10px]">int (64b)</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- PANEL 2: Investigation & Evidence (36% width -> lg:col-span-4 or 5) -->
+<section class="lg:col-span-4 flex flex-col gap-space-sm">
+<div class="bg-surface-container-low rounded-xl flex flex-col p-space-md shadow-sm gap-space-md">
+<!-- Header -->
+<div class="flex items-center justify-between pb-space-xs">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[17px] text-primary">neurology</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold tracking-tight">Investigation Report #0142</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span class="font-label-sm text-label-sm text-tertiary font-medium">Analyzing Complete</span>
+<span class="text-outline">•</span>
+<span class="font-label-sm text-label-sm text-outline">Awaiting Developer Review</span>
+</div>
+</div>
+<span class="font-code-compact text-code-compact px-2 py-0.5 rounded bg-surface-container-high text-primary">Groq 70B</span>
+</div>
+<!-- Section 1: Root Cause Analysis -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md flex flex-col gap-space-xs shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1 text-primary font-label-md text-label-md font-semibold uppercase tracking-wider">
+<span class="material-symbols-outlined text-[15px]">psychology_alt</span>
+<span>Root Cause Analysis</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary bg-tertiary-container/15 px-2 py-0.5 rounded font-medium">High Certainty</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+            The division operation on line 3 receives variable <code class="px-1 py-0.5 rounded bg-surface-container text-secondary font-code-compact text-code-compact">b</code> evaluated to integer value <code class="px-1 py-0.5 rounded bg-surface-container text-error font-code-compact text-code-compact">0</code> as its divisor. Division by zero is mathematically undefined and raises an unhandled <span class="text-error font-medium">ZeroDivisionError</span> in the Python runtime.
+          </p>
+</div>
+<!-- Section 2: Supporting Evidence (Facts vs Hypotheses) -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Supporting Evidence Engine</span>
+<span class="font-code-compact text-code-compact text-outline">3 assertions verified</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<!-- Fact 1 -->
+<div class="p-space-sm rounded-lg bg-surface-container flex items-start gap-space-xs">
+<span class="px-1.5 py-0.5 rounded bg-secondary-container/30 text-secondary font-label-sm text-label-sm font-semibold shrink-0">FACT</span>
+<p class="font-body-sm text-body-sm text-on-surface leading-tight">
+                Variable <code class="text-secondary font-code-compact text-code-compact">b</code> explicitly assigned literal <code class="text-tertiary font-code-compact text-code-compact">0</code> at <span class="text-outline font-code-compact text-code-compact">test.py:2</span>.
+              </p>
+</div>
+<!-- Fact 2 -->
+<div class="p-space-sm rounded-lg bg-surface-container flex items-start gap-space-xs">
+<span class="px-1.5 py-0.5 rounded bg-secondary-container/30 text-secondary font-label-sm text-label-sm font-semibold shrink-0">FACT</span>
+<p class="font-body-sm text-body-sm text-on-surface leading-tight">
+                Expression <code class="text-on-surface font-code-compact text-code-compact">a / b</code> directly evaluated without null/zero check at <span class="text-outline font-code-compact text-code-compact">test.py:3</span>.
+              </p>
+</div>
+<!-- Hypothesis 1 -->
+<div class="p-space-sm rounded-lg bg-surface-container-high/60 flex items-start gap-space-xs">
+<span class="px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant font-label-sm text-label-sm font-semibold shrink-0">HYPOTHESIS</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-tight">
+                Divisor was expected to come from upstream input or default config but remained uninitialized.
+              </p>
+</div>
+</div>
+</div>
+<!-- Section 3: Execution Timeline -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Execution Step Timeline</span>
+<span class="font-code-compact text-code-compact text-outline">Delta: 7.0ms</span>
+</div>
+<div class="relative pl-4 space-y-2.5 before:absolute before:left-1.5 before:top-1.5 before:bottom-1.5 before:w-0.5 before:bg-surface-container-highest">
+<!-- Event 1 -->
+<div class="relative flex items-center justify-between text-body-sm text-body-sm">
+<span class="absolute -left-4 w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="text-on-surface-variant">Script execution initialized with args <code class="text-outline">[]</code></span>
+<span class="font-code-compact text-code-compact text-outline">0.001s</span>
+</div>
+<!-- Event 2 -->
+<div class="relative flex items-center justify-between text-body-sm text-body-sm">
+<span class="absolute -left-4 w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-on-surface-variant">Identifier <code class="text-secondary">a</code> allocated value 10</span>
+<span class="font-code-compact text-code-compact text-outline">0.003s</span>
+</div>
+<!-- Event 3 -->
+<div class="relative flex items-center justify-between text-body-sm text-body-sm">
+<span class="absolute -left-4 w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-on-surface-variant">Identifier <code class="text-secondary">b</code> allocated value 0</span>
+<span class="font-code-compact text-code-compact text-outline">0.004s</span>
+</div>
+<!-- Event 4 -->
+<div class="relative flex items-center justify-between text-body-sm text-body-sm">
+<span class="absolute -left-4 w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-on-surface">Binary operator DIVIDE invoked line 3</span>
+<span class="font-code-compact text-code-compact text-outline">0.006s</span>
+</div>
+<!-- Event 5: Exception -->
+<div class="relative flex items-center justify-between text-body-sm text-body-sm">
+<span class="absolute -left-4 w-2.5 h-2.5 rounded-full bg-error ring-2 ring-error/20"></span>
+<span class="text-error font-medium">[CRITICAL EXCEPTION] ZeroDivisionError thrown</span>
+<span class="font-code-compact text-code-compact text-error font-semibold">0.007s</span>
+</div>
+</div>
+</div>
+<!-- Section 4: Memory & Knowledge Matches -->
+<div class="p-space-sm rounded-lg bg-surface-container flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-tertiary-container/20 text-tertiary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[17px]">hub</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-body-sm text-body-sm text-on-surface">
+              Memory search matched session <span class="font-code-compact text-code-compact text-primary font-semibold">#0042</span> (divisor guard pattern).
+            </span>
+<span class="font-label-sm text-label-sm text-tertiary mt-0.5">Confidence Match: 98.4%</span>
+</div>
+</div>
+</div>
+</section>
+<!-- PANEL 3: Suggested Fix & Verification (32% width -> lg:col-span-4) -->
+<section class="lg:col-span-4 flex flex-col gap-space-sm">
+<div class="bg-surface-container-low rounded-xl flex flex-col p-space-md shadow-sm gap-space-md">
+<!-- Header & Status Pill -->
+<div class="flex items-start justify-between">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[17px] text-tertiary">auto_fix_high</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold tracking-tight">Suggested Fix</h2>
+</div>
+<span class="font-label-sm text-label-sm text-outline mt-0.5">Human-in-the-Loop Governance</span>
+</div>
+<div class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-container/30 text-secondary font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[13px]">info</span>
+<span>Suggested — Not Verified</span>
+</div>
+</div>
+<!-- Rationale Explanation Card -->
+<div class="bg-surface-container-lowest rounded-lg p-space-sm flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Patch Rationale</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+            Wrap the division evaluation in a defensive divisor guard checking <code class="px-1 py-0.5 rounded bg-surface-container text-tertiary font-code-compact text-code-compact">b != 0</code> to prevent unhandled runtime crashes, or provide an explicit fallback notification.
+          </p>
+</div>
+<!-- Code Diff Container -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between text-outline font-label-sm text-label-sm px-1">
+<span>Proposed Diff (test.py:3-6)</span>
+<span class="font-code-compact text-code-compact text-tertiary">+4 / -1 lines</span>
+</div>
+<div class="bg-surface-container-lowest rounded-lg overflow-hidden font-code-compact text-code-compact select-text shadow-inner">
+<!-- Deleted line -->
+<div class="flex items-center bg-error-container/20 text-on-error-container py-1 px-space-sm">
+<span class="w-6 text-error font-bold select-none">-</span>
+<span class="w-8 text-outline select-none text-right pr-2">3</span>
+<span class="line-through opacity-80 text-error">print(a / b)</span>
+</div>
+<!-- Added lines -->
+<div class="flex items-center bg-tertiary-container/10 text-on-surface py-0.5 px-space-sm">
+<span class="w-6 text-tertiary font-bold select-none">+</span>
+<span class="w-8 text-outline select-none text-right pr-2">3</span>
+<div class="flex items-center gap-1">
+<span class="text-secondary font-semibold">if</span>
+<span>b != 0:</span>
+</div>
+</div>
+<div class="flex items-center bg-tertiary-container/10 text-on-surface py-0.5 px-space-sm">
+<span class="w-6 text-tertiary font-bold select-none">+</span>
+<span class="w-8 text-outline select-none text-right pr-2">4</span>
+<span class="pl-4 text-on-surface">print(a / b)</span>
+</div>
+<div class="flex items-center bg-tertiary-container/10 text-on-surface py-0.5 px-space-sm">
+<span class="w-6 text-tertiary font-bold select-none">+</span>
+<span class="w-8 text-outline select-none text-right pr-2">5</span>
+<span class="text-secondary font-semibold">else:</span>
+</div>
+<div class="flex items-center bg-tertiary-container/10 text-on-surface py-0.5 px-space-sm">
+<span class="w-6 text-tertiary font-bold select-none">+</span>
+<span class="w-8 text-outline select-none text-right pr-2">6</span>
+<span class="pl-4 text-tertiary">print("Cannot divide by zero")</span>
+</div>
+</div>
+</div>
+<!-- Verification Sandbox Console Sub-Box -->
+<div class="bg-surface-container rounded-lg p-space-sm flex flex-col gap-space-xs" id="sandbox-box">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-on-surface font-label-sm text-label-sm font-medium">
+<span class="material-symbols-outlined text-[15px] text-primary">science</span>
+<span>Isolated Verification Engine</span>
+</div>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high text-outline font-code-compact text-code-compact" id="sandbox-status-tag">Ready</span>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded text-outline font-code-compact text-code-compact" id="sandbox-output">
+            Verification Ready — Click "Run Verification" to test isolated sandbox execution.
+          </div>
+<!-- Micro Security Notice -->
+<div class="flex items-start gap-1 text-outline font-label-sm text-label-sm leading-tight pt-1">
+<span class="material-symbols-outlined text-[13px] text-tertiary shrink-0">shield</span>
+<span>EYRA never modifies source code without explicit developer confirmation.</span>
+</div>
+</div>
+<!-- Action Control Buttons -->
+<div class="flex flex-col gap-space-xs mt-auto pt-space-xs">
+<button class="w-full h-8 px-space-md rounded-lg bg-surface-container-high hover:bg-surface-bright text-on-surface transition-all flex items-center justify-center gap-2 font-label-md text-label-md font-medium shadow-sm active:scale-[0.99]" id="btn-run-verify" onclick="simulateVerification()">
+<span class="material-symbols-outlined text-[16px] text-primary">play_arrow</span>
+<span>Run Verification</span>
+</button>
+<button class="w-full h-8 px-space-md rounded-lg bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim transition-all flex items-center justify-center gap-2 font-label-md text-label-md font-semibold shadow-sm active:scale-[0.99]" id="btn-apply-vscode" onclick="applyFixToVsCode()">
+<span class="material-symbols-outlined text-[16px]">check</span>
+<span>Approve &amp; Apply to VS Code</span>
+</button>
+<div class="flex items-center gap-space-xs">
+<button class="flex-1 h-7 px-space-sm rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors flex items-center justify-center gap-1 font-label-sm text-label-sm" onclick="copyPatchDiff()">
+<span class="material-symbols-outlined text-[14px]">content_copy</span>
+<span>Copy Diff</span>
+</button>
+<button class="h-7 px-space-sm rounded-lg bg-surface-container hover:bg-error-container/30 text-outline hover:text-error transition-colors flex items-center justify-center gap-1 font-label-sm text-label-sm" onclick="rejectRecommendation()">
+<span class="material-symbols-outlined text-[14px]">close</span>
+<span>Dismiss</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Interactive Client Behavior Script -->
+<script>
+    function switchLeftTab(tabKey) {
+      const tabs = ['src', 'trace', 'term', 'diag'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (btn) {
+          if (t === tabKey) {
+            btn.className = "flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg bg-surface-container-low text-primary font-label-sm text-label-sm font-medium";
+          } else {
+            btn.className = "flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors font-label-sm text-label-sm";
+          }
+        }
+      });
+    }
+
+    function simulateVerification() {
+      const out = document.getElementById('sandbox-output');
+      const tag = document.getElementById('sandbox-status-tag');
+      const btn = document.getElementById('btn-run-verify');
+      
+      if (!out || !tag || !btn) return;
+
+      tag.className = "px-1.5 py-0.5 rounded bg-primary-container/20 text-primary font-code-compact text-code-compact animate-pulse";
+      tag.innerText = "Running sandbox...";
+      out.className = "bg-surface-container-lowest p-2 rounded text-primary font-code-compact text-code-compact";
+      out.innerText = "Spawning isolated sub-process with patch applied...";
+
+      setTimeout(() => {
+        tag.className = "px-1.5 py-0.5 rounded bg-tertiary-container/20 text-tertiary font-code-compact text-code-compact font-semibold";
+        tag.innerText = "Pass: Exit 0";
+        out.className = "bg-surface-container-lowest p-2 rounded text-tertiary font-code-compact text-code-compact";
+        out.innerHTML = "<div>[Sandbox Test: OK] Output: 'Cannot divide by zero'</div><div class='text-outline text-[10px]'>Execution completed in 4.2ms with exit code 0. No unhandled signals.</div>";
+      }, 750);
+    }
+
+    function applyFixToVsCode() {
+      const applyBtn = document.getElementById('btn-apply-vscode');
+      if (!applyBtn) return;
+      applyBtn.className = "w-full h-8 px-space-md rounded-lg bg-tertiary-container text-on-tertiary-container transition-all flex items-center justify-center gap-2 font-label-md text-label-md font-semibold";
+      applyBtn.innerHTML = "<span class='material-symbols-outlined text-[16px]'>task_alt</span><span>Dispatched to VS Code (test.py:3)</span>";
+    }
+
+    function copyPatchDiff() {
+      const diffText = `--- a/test.py\\n+++ b/test.py\\n@@ -3,1 +3,4 @@\\n-print(a / b)\\n+if b != 0:\\n+    print(a / b)\\n+else:\\n+    print("Cannot divide by zero")`;
+      navigator.clipboard?.writeText(diffText);
+    }
+
+    function rejectRecommendation() {
+      const sandbox = document.getElementById('sandbox-box');
+      if (sandbox) {
+        sandbox.classList.add('opacity-50');
+      }
+    }
+  </script>
+</div></main></div></body></html>
