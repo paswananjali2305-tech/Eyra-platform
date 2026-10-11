@@ -114,6 +114,8 @@ export function AuditCodeWorkspace() {
   const [copied, setCopied] = useState(false);
   const [scratchFiles, setScratchFiles] = useState({});
   const [scratchSeq, setScratchSeq] = useState(1);
+  /** Explicit finding chosen from Issues list (may differ from primary file finding). */
+  const [selectedFinding, setSelectedFinding] = useState(null);
 
   useEffect(() => {
     setOpenFolders(new Set(defaultFolders));
@@ -122,13 +124,33 @@ export function AuditCodeWorkspace() {
   useEffect(() => {
     if (!initialTabs.length) return;
     initialTabs.forEach((p) => openFile(p));
+    setSelectedFinding(null);
   }, [usingLive, activeScan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isScratch = Boolean(activeId && scratchFiles[activeId]);
   const file = isScratch
     ? scratchFiles[activeId]
     : fileContents[activeId] || Object.values(fileContents)[0];
-  const finding = isScratch ? null : file?.finding;
+  const finding = useMemo(() => {
+    if (isScratch) return null;
+    if (selectedFinding && selectedFinding.path === activeId) return selectedFinding;
+    return file?.finding || null;
+  }, [isScratch, selectedFinding, activeId, file?.finding]);
+
+  const editorLines = useMemo(() => {
+    if (isScratch || !file) return undefined;
+    const text =
+      file.text != null
+        ? String(file.text)
+        : (file.lines || []).map((l) => (typeof l === 'string' ? l : l?.text ?? '')).join('\n');
+    const parts = text.length ? text.split('\n') : [''];
+    const hl = finding?.line != null ? Number(finding.line) : null;
+    return parts.map((t, i) => ({
+      n: i + 1,
+      text: t,
+      crash: hl != null && i + 1 === hl,
+    }));
+  }, [isScratch, file, finding?.line]);
 
   const tabItems = useMemo(
     () =>
@@ -163,12 +185,21 @@ export function AuditCodeWorkspace() {
   }
 
   const openFinding = useCallback(
-    (path) => {
+    (path, issue = null) => {
       if (!path || !fileContents[path]) {
         showToast?.('Source file not available for this finding', 'info');
         return;
       }
       openFile(path);
+      if (issue) {
+        setSelectedFinding({ ...issue, path });
+      } else {
+        const primary = fileContents[path]?.finding;
+        setSelectedFinding(primary ? { path, ...primary } : null);
+      }
+      if (fileContents[path]?._snippetOnly) {
+        showToast?.('Showing snippet-only content — full file body was not in scan payload', 'info');
+      }
       setSection('heatmap');
     },
     [openFile, fileContents, showToast],
@@ -205,13 +236,18 @@ export function AuditCodeWorkspace() {
   );
 
   async function copyDiff() {
-    if (!finding?.patch) return;
+    if (!finding?.patch) {
+      showToast?.('No suggested patch diff for this finding', 'info');
+      return;
+    }
     try {
       await navigator.clipboard.writeText(finding.patch);
       setCopied(true);
+      showToast?.('Patch diff copied — not applied to the scanned tree', 'info');
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
+      showToast?.('Clipboard blocked', 'error');
     }
   }
 
@@ -308,7 +344,7 @@ export function AuditCodeWorkspace() {
                 <CodeEditor
                   path={activeId}
                   language={file.language}
-                  lines={isScratch ? undefined : file.lines}
+                  lines={isScratch ? undefined : editorLines}
                   editable={isScratch}
                   value={isScratch ? file.text : undefined}
                   onChange={
@@ -322,14 +358,20 @@ export function AuditCodeWorkspace() {
                   }
                   findingLine={finding?.line}
                   findingLabel={finding?.title}
-                  metaRight={
-                    <>
-                      <span className="rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-[10px] text-tertiary">
-                        {isScratch ? 'Scratch' : 'Tree-sitter AST Parsed'}
-                      </span>
-                      <span className="font-label-sm text-label-sm text-outline">{file.language}</span>
-                    </>
-                  }
+                metaRight={
+                  <>
+                    <span className="rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-[10px] text-tertiary">
+                      {isScratch
+                        ? 'Scratch'
+                        : file?._snippetOnly
+                          ? 'Snippet only'
+                          : usingLive
+                            ? 'Live scan file'
+                            : 'Tree-sitter AST Parsed'}
+                    </span>
+                    <span className="font-label-sm text-label-sm text-outline">{file.language}</span>
+                  </>
+                }
                 />
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 font-body-sm text-body-sm text-outline">
@@ -500,7 +542,7 @@ function IssueList({ findings, onOpen, usingLive }) {
           <li key={`${iss.path}:${iss.line}:${iss.id || iss.title}`}>
             <button
               type="button"
-              onClick={() => onOpen(iss.path)}
+              onClick={() => onOpen(iss.path, iss)}
               className="flex w-full flex-col gap-0.5 rounded bg-surface-container-low px-3 py-2 text-left hover:bg-surface-container"
             >
               <div className="flex items-center justify-between gap-2">

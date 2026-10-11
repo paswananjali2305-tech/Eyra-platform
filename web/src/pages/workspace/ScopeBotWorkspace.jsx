@@ -47,6 +47,8 @@ export function ScopeBotWorkspace({
   ]);
   const [scratchFiles, setScratchFiles] = useState({});
   const [scratchSeq, setScratchSeq] = useState(1);
+  /** Edits to mockRepo / opened files — enables analyzing the active buffer, not a frozen SAMPLE. */
+  const [bufferEdits, setBufferEdits] = useState({});
   const [consoleTab, setConsoleTab] = useState('logs');
   const [hitlStep, setHitlStep] = useState(0);
 
@@ -56,7 +58,11 @@ export function ScopeBotWorkspace({
     : FILE_CONTENTS[activeId] || FILE_CONTENTS['test.py'];
   const mockFinding = isScratch ? null : file.finding;
 
-  const bufferText = isScratch ? file?.text || '' : linesToText(file?.lines);
+  const bufferText = isScratch
+    ? file?.text || ''
+    : bufferEdits[activeId] != null
+      ? bufferEdits[activeId]
+      : linesToText(file?.lines);
 
   const buildPayload = useCallback(() => {
     const baseName = (activeId || 'test.py').split('/').pop() || 'test.py';
@@ -139,10 +145,10 @@ export function ScopeBotWorkspace({
   const dirtyIds = useMemo(() => {
     const set = new Set();
     for (const id of openTabs) {
-      if (scratchFiles[id] || FILE_CONTENTS[id]?.dirty) set.add(id);
+      if (scratchFiles[id] || FILE_CONTENTS[id]?.dirty || bufferEdits[id] != null) set.add(id);
     }
     return set;
-  }, [openTabs, scratchFiles]);
+  }, [openTabs, scratchFiles, bufferEdits]);
 
   const addNewFile = useCallback(() => {
     const id = `scratch/untitled-${scratchSeq}.py`;
@@ -256,18 +262,18 @@ export function ScopeBotWorkspace({
               <CodeEditor
                 path={activeId}
                 language={file.language}
-                lines={isScratch ? undefined : file.lines}
-                editable={isScratch}
-                value={isScratch ? file.text : undefined}
-                onChange={
-                  isScratch
-                    ? (text) =>
-                        setScratchFiles((prev) => ({
-                          ...prev,
-                          [activeId]: { ...prev[activeId], text, dirty: true },
-                        }))
-                    : undefined
-                }
+                editable
+                value={bufferText}
+                onChange={(text) => {
+                  if (isScratch) {
+                    setScratchFiles((prev) => ({
+                      ...prev,
+                      [activeId]: { ...prev[activeId], text, dirty: true },
+                    }));
+                  } else {
+                    setBufferEdits((prev) => ({ ...prev, [activeId]: text }));
+                  }
+                }}
                 findingLine={finding?.line}
                 findingLabel={finding?.title}
                 metaRight={
@@ -275,7 +281,7 @@ export function ScopeBotWorkspace({
                     <span className="font-code-compact text-code-compact text-outline">
                       UTF-8 · LF · Spaces: 4
                     </span>
-                    {file.dirty || isScratch ? (
+                    {file.dirty || isScratch || bufferEdits[activeId] != null ? (
                       <span className="text-[10px] text-tertiary">● Modified</span>
                     ) : null}
                     <span className="font-label-sm text-label-sm text-outline">{file.language}</span>
@@ -560,7 +566,10 @@ export function ScopeBotWorkspace({
                 onClick={async () => {
                   setHitlStep(3);
                   await onCopyPatch?.();
-                  showToast?.('Patch copied — apply manually in editor', 'info');
+                  showToast?.(
+                    'Suggested patch copied — not applied to disk (review/copy only)',
+                    'info',
+                  );
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded bg-primary-container px-space-sm py-2 font-label-sm text-label-sm font-semibold text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.3)] hover:brightness-110"
               >

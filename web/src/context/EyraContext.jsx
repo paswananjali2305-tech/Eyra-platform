@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, getBaseUrl, setBaseUrl as persistBaseUrl } from '../api/client';
+import { ApiError, api, getBaseUrl, setBaseUrl as persistBaseUrl } from '../api/client';
 
 const EyraContext = createContext(null);
 
@@ -218,8 +218,18 @@ export function EyraProvider({ children }) {
         const scan = data?.scan || data;
         if (scan) setActiveScan(scan);
       })
-      .catch(() => {
-        /* keep last known scan; id may be stale after Eyraaaa restart */
+      .catch((err) => {
+        if (cancelled) return;
+        // Eyraaaa is in-memory: IDs vanish after restart — clear stale pointer
+        if (err instanceof ApiError && err.status === 404) {
+          setActiveScan(null);
+          setActiveScanIdState(null);
+          try {
+            localStorage.removeItem(SCAN_KEY);
+          } catch {
+            /* ignore */
+          }
+        }
       });
     return () => {
       cancelled = true;

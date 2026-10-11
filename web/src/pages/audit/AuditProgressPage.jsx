@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { api } from '../../api/client';
 import { useEyra } from '../../context/EyraContext';
-import { qs, replaceSubstring, setText } from '../../lib/hydrateStitch.js';
+import { qsa, replaceSubstring, setText } from '../../lib/hydrateStitch.js';
 import AuditProgressStitch from '../stitch_raw/audit/AuditProgressPage.jsx';
 
 function hydrateProgress(root, scan) {
@@ -59,11 +59,23 @@ export function AuditProgressPage() {
   const hostRef = useRef(null);
   const esRef = useRef(null);
   const pollRef = useRef(null);
+  const failToastsRef = useRef(new Set());
+  const pollErrorsRef = useRef(0);
 
   useEffect(() => {
     const root = hostRef.current?.querySelector('.stitch-screen') || hostRef.current;
-    if (activeScan) hydrateProgress(root, activeScan);
-  }, [activeScan]);
+    if (activeScan) {
+      try {
+        hydrateProgress(root, activeScan);
+      } catch (err) {
+        console.warn('Progress hydrate skipped:', err);
+      }
+    }
+    if (activeScan?.status === 'failed' && activeScan.id && !failToastsRef.current.has(activeScan.id)) {
+      failToastsRef.current.add(activeScan.id);
+      showToast?.(activeScan.error || 'Scan failed', 'error');
+    }
+  }, [activeScan, showToast]);
 
   useEffect(() => {
     const scanId = activeScanId;
@@ -73,6 +85,7 @@ export function AuditProgressPage() {
     }
 
     let cancelled = false;
+    pollErrorsRef.current = 0;
 
     function applyPartial(partial) {
       if (cancelled || !partial) return;
@@ -89,10 +102,14 @@ export function AuditProgressPage() {
           error: partial.error,
           summary: partial.summary,
         },
-        { notify: partial.status === 'completed' || partial.status === 'failed' },
+        { notify: false },
       );
       if (partial.status === 'completed') {
         refreshScan(scanId);
+      }
+      if (partial.status === 'failed' && partial.error && !failToastsRef.current.has(scanId)) {
+        failToastsRef.current.add(scanId);
+        showToast?.(partial.error, 'error');
       }
     }
 
@@ -119,9 +136,10 @@ export function AuditProgressPage() {
       try {
         const data = await api.getScan(scanId);
         if (cancelled) return;
+        pollErrorsRef.current = 0;
         const scan = data?.scan || data;
         if (scan) {
-          adoptScan(scan);
+          adoptScan(scan, { notify: false });
           if (scan.status === 'completed' || scan.status === 'failed') {
             if (pollRef.current) {
               clearInterval(pollRef.current);
@@ -134,7 +152,18 @@ export function AuditProgressPage() {
           }
         }
       } catch (err) {
-        if (!cancelled) showToast?.(err.message || 'Scan poll failed', 'error');
+        if (cancelled) return;
+        pollErrorsRef.current += 1;
+        if (pollErrorsRef.current === 1) {
+          showToast?.(err.message || 'Scan poll failed — retrying', 'error');
+        }
+        if (pollErrorsRef.current >= 5) {
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+          showToast?.('Stopped polling — audit backend unreachable or scan missing', 'error');
+        }
       }
     };
     tick();
@@ -162,7 +191,10 @@ export function AuditProgressPage() {
         if (text.includes('Cancel Audit') || (text.includes('Cancel') && !text.includes('Partial'))) {
           e.preventDefault();
           setAuditView('overview');
-          showToast?.('Left progress view (scan may still run on server)', 'info');
+          showToast?.(
+            'Left progress view — Cancel does not stop the server scan (no cancel API)',
+            'info',
+          );
         } else if (
           text.includes('View Partial Findings') ||
           text.includes('Partial Findings') ||

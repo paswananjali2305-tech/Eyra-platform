@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     eyra_port: int = 8000
     eyra_db_path: str = str(DEFAULT_DB)
     eyra_allow_local_fallback: bool = True
-    eyra_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    eyra_cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174"
+    )
     eyra_audit_base_url: str = "http://127.0.0.1:5000"
     eyra_exec_timeout_s: float = 3.0
     eyra_audit_enrich_limit: int = Field(default=12, ge=1, le=40)

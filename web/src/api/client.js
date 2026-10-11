@@ -213,10 +213,17 @@ export const api = {
     const MAX = 50 * 1024 * 1024;
     if (!file) return Promise.reject(new ApiError('No file selected', 400));
     if (!/\.zip$/i.test(file.name || '')) {
-      return Promise.reject(new ApiError('Only .zip archives are supported', 400));
+      return Promise.reject(
+        new ApiError('Invalid archive: only .zip files are accepted (Eyraaaa upload filter)', 400),
+      );
     }
     if (file.size > MAX) {
-      return Promise.reject(new ApiError('ZIP exceeds 50 MB limit', 400));
+      return Promise.reject(
+        new ApiError('ZIP exceeds 50 MB backend limit — choose a smaller archive', 400),
+      );
+    }
+    if (file.size === 0) {
+      return Promise.reject(new ApiError('ZIP file is empty', 400));
     }
 
     const form = new FormData();

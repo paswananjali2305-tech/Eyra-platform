@@ -79,13 +79,20 @@ export function buildFileContentsFromScan(scan) {
         : primary?.snippet
           ? String(primary.snippet)
           : '';
+    const allFindings = fileIssues.map((iss) => ({
+      path,
+      ...mapIssueToFinding(iss),
+    }));
     out[path] = {
       language: extLang(path),
       dirty: Boolean(finding),
-      finding,
+      finding: finding ? { path, ...finding } : null,
+      allFindings,
       lines: textToLines(text, finding?.line),
       text,
       _live: true,
+      // Prefer full file body; snippet-only is labeled for honesty in the UI
+      _snippetOnly: fileContents[path] == null && Boolean(primary?.snippet),
     };
   }
   return out;
