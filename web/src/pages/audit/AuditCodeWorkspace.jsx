@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CodeEditor } from '../../components/ide/CodeEditor.jsx';
 import { FileExplorer } from '../../components/ide/FileExplorer.jsx';
 import { FileTabBar } from '../../components/ide/FileTabBar.jsx';
-import { DEFAULT_OPEN_FOLDERS, FILE_CONTENTS, REPO_TREE } from '../../data/mockRepo.js';
+import { useEyra } from '../../context/EyraContext.jsx';
+import { mapTrendsFromScans, resolveAuditWorkspace } from '../../lib/auditScanMap.js';
 import { useOpenTabs } from '../../hooks/useOpenTabs.js';
 
 const NEW_FILE_TEMPLATE = `# Scratch file for audit notes / repro
@@ -11,7 +12,7 @@ def main():
     pass
 `;
 
-const PARTIAL_FEATURES = [
+const FALLBACK_PARTIALS = [
   {
     id: 'pf-mfa',
     file: 'auth/jwt_handler.py',
@@ -50,60 +51,83 @@ const PARTIAL_FEATURES = [
   },
 ];
 
-const TREND_POINTS = [
+const FALLBACK_TRENDS = [
   { label: 'Today', critical: 2, high: 4, medium: 5, score: 72 },
   { label: 'Yesterday', critical: 3, high: 5, medium: 6, score: 64 },
   { label: '3 days ago', critical: 4, high: 6, medium: 7, score: 58 },
   { label: 'Last week', critical: 5, high: 8, medium: 9, score: 51 },
 ];
 
-function collectFindings() {
-  return Object.entries(FILE_CONTENTS)
-    .filter(([, f]) => f?.finding)
-    .map(([path, f]) => ({
-      path,
-      ...f.finding,
-      language: f.language,
-    }));
-}
-
 /**
  * Code Audit — VS Code explorer + clickable section tabs + editor + AST proof.
  */
 export function AuditCodeWorkspace() {
-  const findings = useMemo(() => collectFindings(), []);
-  const deps = useMemo(
-    () => findings.filter((f) => String(f.cwe || f.title || '').includes('CVE')),
-    [findings],
-  );
+  const { activeScan, scanList, refreshScan, activeScanId, refreshScanList, showToast } = useEyra();
+
+  useEffect(() => {
+    refreshScanList();
+    if (activeScanId) refreshScan(activeScanId);
+  }, [activeScanId, refreshScan, refreshScanList]);
+
+  const workspace = useMemo(() => resolveAuditWorkspace(activeScan), [activeScan]);
+  const {
+    usingLive,
+    fileContents,
+    repoTree,
+    defaultFolders,
+    projectLabel,
+    findings,
+    partials: livePartials,
+    dependencies: liveDeps,
+  } = workspace;
+
+  const partials = livePartials || FALLBACK_PARTIALS;
+  const deps = useMemo(() => {
+    if (liveDeps) return liveDeps;
+    return findings.filter((f) => String(f.cwe || f.title || '').includes('CVE'));
+  }, [liveDeps, findings]);
+
+  const liveTrends = useMemo(() => mapTrendsFromScans(scanList), [scanList]);
+  const trendPoints = liveTrends || FALLBACK_TRENDS;
 
   const tabs = useMemo(
     () => [
       { id: 'overview', label: 'Overview' },
       { id: 'issues', label: `Issues (${findings.length})` },
       { id: 'heatmap', label: 'File Heatmap & Code' },
-      { id: 'partials', label: `Partial Features (${PARTIAL_FEATURES.length})` },
+      { id: 'partials', label: `Partial Features (${partials.length})` },
       { id: 'deps', label: `Dependencies & CVEs (${deps.length})` },
       { id: 'trends', label: 'Trend History' },
     ],
-    [findings.length, deps.length],
+    [findings.length, partials.length, deps.length],
   );
 
   const [section, setSection] = useState('heatmap');
-  const [openFolders, setOpenFolders] = useState(() => new Set(DEFAULT_OPEN_FOLDERS));
-  const { openTabs, activeId, setActiveId, openFile, closeTab } = useOpenTabs([
-    'auth/jwt_handler.py',
-    'routes/payment.py',
-    'config/settings.json',
-  ]);
+  const [openFolders, setOpenFolders] = useState(() => new Set(defaultFolders));
+  const initialTabs = useMemo(() => {
+    const flagged = findings.slice(0, 3).map((f) => f.path).filter(Boolean);
+    if (flagged.length) return flagged;
+    return Object.keys(fileContents).slice(0, 3);
+  }, [findings, fileContents]);
+
+  const { openTabs, activeId, setActiveId, openFile, closeTab } = useOpenTabs(initialTabs);
   const [copied, setCopied] = useState(false);
   const [scratchFiles, setScratchFiles] = useState({});
   const [scratchSeq, setScratchSeq] = useState(1);
 
+  useEffect(() => {
+    setOpenFolders(new Set(defaultFolders));
+  }, [defaultFolders]);
+
+  useEffect(() => {
+    if (!initialTabs.length) return;
+    initialTabs.forEach((p) => openFile(p));
+  }, [usingLive, activeScan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isScratch = Boolean(activeId && scratchFiles[activeId]);
   const file = isScratch
     ? scratchFiles[activeId]
-    : FILE_CONTENTS[activeId] || FILE_CONTENTS['auth/jwt_handler.py'];
+    : fileContents[activeId] || Object.values(fileContents)[0];
   const finding = isScratch ? null : file?.finding;
 
   const tabItems = useMemo(
@@ -111,19 +135,23 @@ export function AuditCodeWorkspace() {
       openTabs.map((id) => ({
         id,
         name: id.split('/').pop(),
-        dirty: scratchFiles[id] ? true : FILE_CONTENTS[id]?.dirty,
-        severity: scratchFiles[id] ? null : FILE_CONTENTS[id]?.finding ? 'critical' : null,
+        dirty: scratchFiles[id] ? true : fileContents[id]?.dirty,
+        severity: scratchFiles[id]
+          ? null
+          : fileContents[id]?.finding
+            ? String(fileContents[id].finding.severity || 'critical').toLowerCase()
+            : null,
       })),
-    [openTabs, scratchFiles],
+    [openTabs, scratchFiles, fileContents],
   );
 
   const dirtyIds = useMemo(() => {
     const set = new Set();
     for (const id of openTabs) {
-      if (scratchFiles[id] || FILE_CONTENTS[id]?.dirty) set.add(id);
+      if (scratchFiles[id] || fileContents[id]?.dirty) set.add(id);
     }
     return set;
-  }, [openTabs, scratchFiles]);
+  }, [openTabs, scratchFiles, fileContents]);
 
   function toggleFolder(id) {
     setOpenFolders((prev) => {
@@ -136,10 +164,14 @@ export function AuditCodeWorkspace() {
 
   const openFinding = useCallback(
     (path) => {
+      if (!path || !fileContents[path]) {
+        showToast?.('Source file not available for this finding', 'info');
+        return;
+      }
       openFile(path);
       setSection('heatmap');
     },
-    [openFile],
+    [openFile, fileContents, showToast],
   );
 
   const addNewFile = useCallback(() => {
@@ -183,18 +215,25 @@ export function AuditCodeWorkspace() {
     }
   }
 
-  const critical = findings.filter((f) => /critical/i.test(f.title || '')).length;
-  const high = findings.filter((f) => /high/i.test(f.title || '')).length;
+  const critical = findings.filter((f) => /critical/i.test(f.severity || f.title || '')).length;
+  const high = findings.filter((f) => /high/i.test(f.severity || f.title || '')).length;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden select-none">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-space-sm border-b border-outline-variant/20 bg-surface-container-lowest px-space-md py-space-sm">
         <div className="flex min-w-0 flex-wrap items-center gap-space-sm">
-          <span className="rounded border border-primary/30 bg-primary-container/15 px-2 py-0.5 font-label-sm text-label-sm font-semibold text-primary">
-            AST-ACTIVE
+          <span
+            className={`rounded border px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+              usingLive
+                ? 'border-primary/30 bg-primary-container/15 text-primary'
+                : 'border-outline-variant/40 bg-surface-container text-on-surface-variant'
+            }`}
+          >
+            {usingLive ? 'AST-ACTIVE · LIVE' : 'DEMO FALLBACK'}
           </span>
           <span className="truncate font-code-compact text-code-compact text-on-surface-variant">
-            backend-api-v2.4.zip · {Object.keys(FILE_CONTENTS).length} files · SHA-256 Validated
+            {projectLabel} · {Object.keys(fileContents).length} files
+            {usingLive ? '' : ' · mockRepo'}
           </span>
         </div>
         <span className="rounded bg-error-container/35 px-2 py-0.5 font-label-sm text-label-sm font-semibold text-error">
@@ -224,7 +263,7 @@ export function AuditCodeWorkspace() {
           findings={findings}
           critical={critical}
           high={high}
-          partials={PARTIAL_FEATURES.length}
+          partials={partials.length}
           deps={deps.length}
           onOpenHeatmap={() => setSection('heatmap')}
           onOpenIssues={() => setSection('issues')}
@@ -232,24 +271,24 @@ export function AuditCodeWorkspace() {
       ) : null}
 
       {section === 'issues' ? (
-        <IssueList findings={findings} onOpen={openFinding} />
+        <IssueList findings={findings} onOpen={openFinding} usingLive={usingLive} />
       ) : null}
 
       {section === 'partials' ? (
-        <PartialList items={PARTIAL_FEATURES} onOpen={openFinding} />
+        <PartialList items={partials} onOpen={openFinding} demo={!livePartials} />
       ) : null}
 
       {section === 'deps' ? (
-        <DepsList items={deps} onOpen={openFinding} />
+        <DepsList items={deps} onOpen={openFinding} usingLive={usingLive} />
       ) : null}
 
-      {section === 'trends' ? <TrendPanel points={TREND_POINTS} /> : null}
+      {section === 'trends' ? <TrendPanel points={trendPoints} demo={!liveTrends} /> : null}
 
       {section === 'heatmap' ? (
         <>
           <div className="flex min-h-0 flex-1 overflow-hidden bg-surface-container-lowest">
             <FileExplorer
-              tree={REPO_TREE}
+              tree={repoTree}
               open={openFolders}
               selected={activeId}
               onToggle={toggleFolder}
@@ -443,12 +482,22 @@ function OverviewPanel({ findings, critical, high, partials, deps, onOpenHeatmap
   );
 }
 
-function IssueList({ findings, onOpen }) {
+function IssueList({ findings, onOpen, usingLive }) {
+  if (!findings.length) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-space-xl text-center">
+        <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
+          {usingLive ? 'Live scan returned no issues.' : 'No findings in demo fallback tree.'}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex-1 overflow-auto p-space-md">
       <ul className="flex flex-col gap-1">
         {findings.map((iss) => (
-          <li key={`${iss.path}:${iss.line}`}>
+          <li key={`${iss.path}:${iss.line}:${iss.id || iss.title}`}>
             <button
               type="button"
               onClick={() => onOpen(iss.path)}
@@ -462,6 +511,7 @@ function IssueList({ findings, onOpen }) {
               </div>
               <span className="font-code-compact text-code-compact text-outline">
                 {iss.path}:{iss.line}
+                {iss.severity ? ` · ${iss.severity}` : ''}
               </span>
               <span className="font-body-sm text-body-sm text-on-surface-variant">{iss.summary}</span>
             </button>
@@ -472,9 +522,12 @@ function IssueList({ findings, onOpen }) {
   );
 }
 
-function PartialList({ items, onOpen }) {
+function PartialList({ items, onOpen, demo }) {
   return (
     <div className="flex-1 overflow-auto p-space-md">
+      {demo ? (
+        <p className="mb-2 font-label-sm text-label-sm text-outline">Demo fallback partials (no live list)</p>
+      ) : null}
       <ul className="flex flex-col gap-1">
         {items.map((p) => (
           <li key={p.id}>
@@ -500,12 +553,14 @@ function PartialList({ items, onOpen }) {
   );
 }
 
-function DepsList({ items, onOpen }) {
+function DepsList({ items, onOpen, usingLive }) {
   if (!items.length) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-space-xl text-center">
         <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
-        <p className="font-body-sm text-body-sm text-on-surface-variant">No CVE findings in mock tree.</p>
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
+          {usingLive ? 'No vulnerable dependencies in this scan.' : 'No CVE findings in demo fallback.'}
+        </p>
       </div>
     );
   }
@@ -516,7 +571,7 @@ function DepsList({ items, onOpen }) {
           <li key={`${d.path}:${d.cwe}`}>
             <button
               type="button"
-              onClick={() => onOpen(d.path)}
+              onClick={() => (d.package ? undefined : onOpen(d.path))}
               className="flex w-full flex-col gap-0.5 rounded bg-surface-container-low px-3 py-2 text-left hover:bg-surface-container"
             >
               <div className="flex items-center justify-between gap-2">
@@ -535,13 +590,15 @@ function DepsList({ items, onOpen }) {
   );
 }
 
-function TrendPanel({ points }) {
+function TrendPanel({ points, demo }) {
   return (
     <div className="flex flex-1 flex-col gap-space-md overflow-auto p-space-xl">
       <div>
         <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">Trend history</h2>
         <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-          Recent audit health scores for this project.
+          {demo
+            ? 'Demo trend points — live scores appear after multiple scans.'
+            : 'Recent audit health scores from the scan list.'}
         </p>
       </div>
       <ul className="flex flex-col gap-2">

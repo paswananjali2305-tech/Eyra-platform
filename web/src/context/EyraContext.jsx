@@ -4,6 +4,7 @@ import { api, getBaseUrl, setBaseUrl as persistBaseUrl } from '../api/client';
 const EyraContext = createContext(null);
 
 const WORKSPACE_KEY = 'eyra.activeSessionId';
+const SCAN_KEY = 'eyra.activeScanId';
 const EYES_KEY = 'eyra.eyesConnected';
 
 const MODE_KEY = 'eyra.uiMode';
@@ -70,6 +71,15 @@ export function EyraProvider({ children }) {
     },
   ]);
   const [toast, setToast] = useState(null);
+  const [activeScanId, setActiveScanIdState] = useState(() => {
+    try {
+      return localStorage.getItem(SCAN_KEY) || null;
+    } catch {
+      return null;
+    }
+  });
+  const [activeScan, setActiveScan] = useState(null);
+  const [scanList, setScanList] = useState([]);
 
   const setMode = useCallback((next) => {
     const m = next === 'audit' ? 'audit' : 'runtime';
@@ -119,6 +129,102 @@ export function EyraProvider({ children }) {
       .then((r) => setActiveResult(r))
       .catch(() => localStorage.removeItem(WORKSPACE_KEY));
   }, [backendUrl]);
+
+  const setActiveScanId = useCallback((id) => {
+    const next = id || null;
+    setActiveScanIdState(next);
+    try {
+      if (next) localStorage.setItem(SCAN_KEY, next);
+      else localStorage.removeItem(SCAN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const refreshScan = useCallback(
+    async (scanId) => {
+      const id = scanId || activeScanId;
+      if (!id) return null;
+      try {
+        const data = await api.getScan(id);
+        const scan = data?.scan || data;
+        if (scan) {
+          setActiveScan(scan);
+          setActiveScanId(scan.id || id);
+        }
+        return scan;
+      } catch (err) {
+        return null;
+      }
+    },
+    [activeScanId, setActiveScanId],
+  );
+
+  const adoptScan = useCallback(
+    (scanOrId, meta = {}) => {
+      if (!scanOrId) return;
+      if (typeof scanOrId === 'string') {
+        setActiveScanId(scanOrId);
+        setActiveScan((prev) =>
+          prev?.id === scanOrId
+            ? { ...prev, ...meta }
+            : { id: scanOrId, status: meta.status || 'pending', ...meta },
+        );
+        return;
+      }
+      const scan = scanOrId;
+      if (scan.id) setActiveScanId(scan.id);
+      setActiveScan((prev) => {
+        if (prev?.id && scan.id && prev.id === scan.id) {
+          return { ...prev, ...scan };
+        }
+        return scan;
+      });
+      if (meta.notify === true || meta.title) {
+        setNotifications((prev) => [
+          {
+            id: `n-scan-${Date.now()}`,
+            title: meta.title || `Audit ${scan.status || 'updated'}`,
+            body: `${scan.projectName || 'Scan'} · ${scan.status || ''} · ${String(scan.id || '').slice(0, 8)}`,
+            time: 'just now',
+            read: false,
+            href: scan.status === 'completed' ? 'audit:code' : 'audit:progress',
+          },
+          ...prev,
+        ]);
+      }
+    },
+    [setActiveScanId],
+  );
+
+  const refreshScanList = useCallback(async () => {
+    try {
+      const data = await api.listScans();
+      const scans = data?.scans || [];
+      setScanList(scans);
+      return scans;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeScanId) return undefined;
+    let cancelled = false;
+    api
+      .getScan(activeScanId)
+      .then((data) => {
+        if (cancelled) return;
+        const scan = data?.scan || data;
+        if (scan) setActiveScan(scan);
+      })
+      .catch(() => {
+        /* keep last known scan; id may be stale after Eyraaaa restart */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backendUrl, activeScanId]);
 
   const setBackendUrl = useCallback((url) => {
     persistBaseUrl(url);
@@ -210,6 +316,14 @@ export function EyraProvider({ children }) {
       toast,
       showToast,
       dismissToast,
+      activeScanId,
+      setActiveScanId,
+      activeScan,
+      setActiveScan,
+      adoptScan,
+      refreshScan,
+      scanList,
+      refreshScanList,
     }),
     [
       backendUrl,
@@ -232,6 +346,13 @@ export function EyraProvider({ children }) {
       toast,
       showToast,
       dismissToast,
+      activeScanId,
+      setActiveScanId,
+      activeScan,
+      adoptScan,
+      refreshScan,
+      scanList,
+      refreshScanList,
     ],
   );
 

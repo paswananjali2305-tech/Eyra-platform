@@ -22,6 +22,11 @@ if __name__ == "__main__":
     main()
 `;
 
+function linesToText(lines) {
+  if (!lines?.length) return '';
+  return lines.map((l) => (typeof l === 'string' ? l : l?.text ?? '')).join('\n');
+}
+
 /**
  * Runtime Debugging — editor + tabs (+ new file) + terminal + ScopeBot.
  */
@@ -29,10 +34,12 @@ export function ScopeBotWorkspace({
   loading = false,
   statusNote = '',
   statusError = '',
+  execResult = null,
   onAnalyze,
+  onSandbox,
   onCopyPatch,
 }) {
-  const { showToast } = useEyra();
+  const { showToast, activeResult, status } = useEyra();
   const { openTabs, activeId, setActiveId, openFile, closeTab } = useOpenTabs([
     'test.py',
     'main.py',
@@ -47,7 +54,76 @@ export function ScopeBotWorkspace({
   const file = isScratch
     ? scratchFiles[activeId]
     : FILE_CONTENTS[activeId] || FILE_CONTENTS['test.py'];
-  const finding = isScratch ? null : file.finding;
+  const mockFinding = isScratch ? null : file.finding;
+
+  const bufferText = isScratch ? file?.text || '' : linesToText(file?.lines);
+
+  const buildPayload = useCallback(() => {
+    const baseName = (activeId || 'test.py').split('/').pop() || 'test.py';
+    const langRaw = String(file?.language || 'python').toLowerCase();
+    return {
+      file_name: baseName,
+      language: langRaw.includes('py') ? 'python' : langRaw.split(/\s+/)[0] || 'python',
+      code_snippet: bufferText,
+      terminal_output: activeResult?.terminal_output || '',
+      stack_trace: activeResult?.stack_trace || '',
+      error_type: activeResult?.error_type || undefined,
+      project_name: activeResult?.project_name || 'default',
+    };
+  }, [activeId, file?.language, bufferText, activeResult]);
+
+  /** Prefer live Brain result; keep mock finding as visual fallback. */
+  const finding = useMemo(() => {
+    if (activeResult) {
+      const lineHint =
+        mockFinding?.line ||
+        (() => {
+          const m = String(activeResult.stack_trace || '').match(/line (\d+)/i);
+          return m ? Number(m[1]) : null;
+        })();
+      const evidence0 = activeResult.evidence?.[0];
+      const evidence1 = activeResult.evidence?.[1];
+      return {
+        title: activeResult.error_type || mockFinding?.title || 'Runtime fault',
+        summary: activeResult.root_cause || activeResult.explanation || mockFinding?.summary,
+        line: lineHint,
+        cwe: evidence0?.kind || activeResult.verification?.status || mockFinding?.cwe || 'Runtime',
+        impact:
+          evidence1?.detail ||
+          activeResult.error_summary ||
+          activeResult.explanation ||
+          mockFinding?.impact,
+        patch:
+          activeResult.suggested_correction?.diff_unified ||
+          activeResult.suggested_correction?.corrected_code ||
+          mockFinding?.patch ||
+          '',
+        verification: activeResult.verification,
+      };
+    }
+    return mockFinding;
+  }, [activeResult, mockFinding]);
+
+  const certaintyLabel = useMemo(() => {
+    if (activeResult?.confidence != null && !Number.isNaN(Number(activeResult.confidence))) {
+      const c = Number(activeResult.confidence);
+      const pct = c <= 1 ? c * 100 : c;
+      return `${pct.toFixed(1)}% Certainty`;
+    }
+    return '99.2% Certainty';
+  }, [activeResult]);
+
+  const modelLabel = useMemo(() => {
+    const model = status?.groq_model_runtime || status?.groq_model || 'local heuristic';
+    const src = activeResult?.reasoning_source || (status?.groq_configured ? 'groq' : 'local');
+    return `${model} · ${src}`;
+  }, [status, activeResult]);
+
+  const exitCode = execResult
+    ? execResult.exit_code
+    : finding
+      ? 1
+      : 0;
 
   const tabItems = useMemo(
     () =>
@@ -106,7 +182,7 @@ export function ScopeBotWorkspace({
             disabled={loading}
             onClick={() => {
               setHitlStep(0);
-              onAnalyze?.();
+              onAnalyze?.(buildPayload());
             }}
             className="flex items-center gap-1 rounded bg-surface-container px-2 py-1 font-label-sm text-label-sm text-on-surface transition-colors hover:bg-surface-container-high disabled:opacity-40"
           >
@@ -145,7 +221,7 @@ export function ScopeBotWorkspace({
             onClick={() => {
               setConsoleTab('output');
               setHitlStep(1);
-              onAnalyze?.();
+              (onSandbox || onAnalyze)?.(buildPayload());
             }}
             className="flex items-center gap-1 rounded bg-secondary-container/40 px-2 py-1 font-label-sm text-label-sm font-semibold text-secondary transition-colors hover:bg-secondary-container/55 disabled:opacity-40"
           >
@@ -227,7 +303,11 @@ export function ScopeBotWorkspace({
                 <div className="flex h-full items-center gap-0.5">
                   {[
                     { id: 'logs', label: 'Terminal / Runtime Logs', icon: 'terminal' },
-                    { id: 'stack', label: `Stack Trace (${finding ? 1 : 0})`, icon: null },
+                    {
+                      id: 'stack',
+                      label: `Stack Trace (${(activeResult?.stack_trace || finding) ? 1 : 0})`,
+                      icon: null,
+                    },
                     { id: 'output', label: 'Execution Output', icon: null, hideSm: true },
                   ].map((tab) => (
                     <button
@@ -251,12 +331,12 @@ export function ScopeBotWorkspace({
                 </div>
                 <span
                   className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-code-compact text-code-compact ${
-                    finding
+                    exitCode
                       ? 'bg-error-container/30 text-error'
                       : 'bg-tertiary-container/30 text-tertiary'
                   }`}
                 >
-                  {finding ? 'Exit code 1' : 'Exit code 0'}
+                  Exit code {exitCode}
                 </span>
               </div>
               <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-space-sm font-code-compact text-code-compact text-on-surface">
@@ -265,39 +345,67 @@ export function ScopeBotWorkspace({
                     <div className="text-outline">
                       $ /usr/local/bin/python3 /workspace/backend-api/{activeId || 'test.py'}
                     </div>
-                    {finding ? (
+                    {execResult?.stderr || activeResult?.terminal_output || finding ? (
                       <div className="flex items-center gap-1 pt-0.5 font-semibold text-error">
                         <span className="material-symbols-outlined text-[14px]">error</span>
-                        {finding.title}
+                        {execResult?.error_type ||
+                          activeResult?.error_type ||
+                          finding?.title ||
+                          'Runtime fault'}
                       </div>
                     ) : (
                       <div className="text-tertiary">Process finished with exit code 0.</div>
                     )}
+                    {execResult?.stdout ? (
+                      <div className="whitespace-pre-wrap text-on-surface-variant">{execResult.stdout}</div>
+                    ) : null}
                   </>
                 ) : null}
                 {consoleTab === 'stack' ? (
-                  finding ? (
+                  (activeResult?.stack_trace || finding) ? (
                     <>
-                      <div className="text-on-surface-variant">Traceback (most recent call last):</div>
-                      <div className="pl-4 text-on-surface-variant">
-                        File{' '}
-                        <span className="text-primary">&quot;/workspace/backend-api/{activeId}&quot;</span>
-                        , line {finding.line}, in{' '}
-                        <span className="text-secondary">&lt;module&gt;</span>
-                      </div>
-                      <div className="font-semibold text-error">{finding.title}</div>
-                      <div className="text-on-surface-variant">{finding.summary}</div>
+                      {activeResult?.stack_trace ? (
+                        <div className="whitespace-pre-wrap text-on-surface-variant">
+                          {activeResult.stack_trace}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-on-surface-variant">
+                            Traceback (most recent call last):
+                          </div>
+                          <div className="pl-4 text-on-surface-variant">
+                            File{' '}
+                            <span className="text-primary">
+                              &quot;/workspace/backend-api/{activeId}&quot;
+                            </span>
+                            , line {finding.line}, in{' '}
+                            <span className="text-secondary">&lt;module&gt;</span>
+                          </div>
+                          <div className="font-semibold text-error">{finding.title}</div>
+                          <div className="text-on-surface-variant">{finding.summary}</div>
+                        </>
+                      )}
                     </>
                   ) : (
                     <div className="text-tertiary">No stack trace for this file.</div>
                   )
                 ) : null}
                 {consoleTab === 'output' ? (
-                  finding ? (
+                  execResult || finding || activeResult ? (
                     <>
-                      <div className="text-outline">stderr</div>
-                      <div className="text-error">{finding.title}</div>
-                      <div className="text-on-surface-variant">{finding.impact}</div>
+                      <div className="text-outline">{execResult?.ok ? 'stdout' : 'stderr'}</div>
+                      <div className="whitespace-pre-wrap text-error">
+                        {execResult?.stderr ||
+                          activeResult?.terminal_output ||
+                          finding?.title ||
+                          ''}
+                      </div>
+                      <div className="whitespace-pre-wrap text-on-surface-variant">
+                        {execResult?.stdout ||
+                          activeResult?.verification?.detail ||
+                          finding?.impact ||
+                          ''}
+                      </div>
                     </>
                   ) : (
                     <>
@@ -321,9 +429,7 @@ export function ScopeBotWorkspace({
                 <span className="font-headline-sm text-headline-sm leading-tight text-on-surface">
                   ScopeBot Online
                 </span>
-                <span className="font-label-sm text-[10px] text-tertiary">
-                  Groq Llama-3-70b · 182 tps
-                </span>
+                <span className="font-label-sm text-[10px] text-tertiary">{modelLabel}</span>
               </div>
             </div>
             <button
@@ -345,7 +451,7 @@ export function ScopeBotWorkspace({
                       Root-Cause Analysis
                     </span>
                     <span className="rounded bg-tertiary-container/20 px-1.5 py-0.5 font-label-sm text-[10px] text-tertiary">
-                      99.2% Certainty
+                      {certaintyLabel}
                     </span>
                   </div>
                   <p className="font-body-md text-body-md leading-snug text-on-surface">
@@ -430,7 +536,11 @@ export function ScopeBotWorkspace({
                 ))}
               </div>
               <p className="font-body-sm text-body-sm text-on-surface-variant">
-                Status: {HITL_STEPS[hitlStep]?.label || 'Suggested'} — human approval required before apply.
+                Status: {HITL_STEPS[hitlStep]?.label || 'Suggested'}
+                {activeResult?.verification?.status
+                  ? ` · verify ${activeResult.verification.status}`
+                  : ''}{' '}
+                — human approval required before apply.
               </p>
               <button
                 type="button"
@@ -438,7 +548,7 @@ export function ScopeBotWorkspace({
                 onClick={() => {
                   setHitlStep(1);
                   setConsoleTab('output');
-                  onAnalyze?.();
+                  (onSandbox || onAnalyze)?.(buildPayload());
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded bg-surface-container-high px-space-sm py-2 font-label-sm text-label-sm font-semibold text-on-surface hover:bg-surface-bright disabled:opacity-40"
               >

@@ -203,6 +203,72 @@ export const api = {
     });
   },
 
+  /**
+   * Real ZIP upload — multipart field name must be `codebase` (Eyraaaa multer).
+   * Max 50MB; .zip only. Do not set Content-Type (browser sets boundary).
+   * @param {File} file
+   * @param {{onProgress?:(pct:number)=>void}} [opts]
+   */
+  uploadZip(file, opts = {}) {
+    const MAX = 50 * 1024 * 1024;
+    if (!file) return Promise.reject(new ApiError('No file selected', 400));
+    if (!/\.zip$/i.test(file.name || '')) {
+      return Promise.reject(new ApiError('Only .zip archives are supported', 400));
+    }
+    if (file.size > MAX) {
+      return Promise.reject(new ApiError('ZIP exceeds 50 MB limit', 400));
+    }
+
+    const form = new FormData();
+    form.append('codebase', file, file.name);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const url = `${getBaseUrl()}/api/audit/upload`;
+      xhr.open('POST', url);
+      xhr.timeout = 120_000;
+      xhr.responseType = 'text';
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable && opts.onProgress) {
+          opts.onProgress(Math.round((ev.loaded / ev.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        let data = null;
+        try {
+          data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } catch {
+          data = xhr.responseText;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data);
+          return;
+        }
+        const detail =
+          typeof data === 'object' && data
+            ? data.error || data.detail || JSON.stringify(data)
+            : `HTTP ${xhr.status}`;
+        reject(new ApiError(String(detail), xhr.status, data));
+      };
+      xhr.onerror = () =>
+        reject(new ApiError(`Upload failed — is Brain/Eyraaaa running at ${getBaseUrl()}?`, 0));
+      xhr.ontimeout = () => reject(new ApiError('Upload timed out', 408));
+      xhr.send(form);
+    });
+  },
+
+  /**
+   * Eyraaaa GitHub path is mock-only (loads NovaPay sample). Prefer labeling in UI.
+   * @param {string} repoUrl
+   */
+  uploadGithubMock(repoUrl) {
+    return request('/api/audit/upload', {
+      method: 'POST',
+      body: JSON.stringify({ repoUrl }),
+      timeoutMs: 60_000,
+    });
+  },
+
   startScan(scanId) {
     return request(`/api/audit/scan/${encodeURIComponent(scanId)}/start`, {
       method: 'POST',
@@ -212,5 +278,42 @@ export const api = {
 
   getScan(scanId) {
     return request(`/api/audit/scan/${encodeURIComponent(scanId)}`);
+  },
+
+  listScans() {
+    return request('/api/audit/scans', { timeoutMs: 15_000 });
+  },
+
+  /**
+   * Download report (markdown|json). Returns Blob.
+   * @param {string} scanId
+   * @param {'markdown'|'json'} [format]
+   */
+  async downloadReport(scanId, format = 'markdown') {
+    const qs = format === 'json' ? '?format=json' : '?format=markdown';
+    const url = `${getBaseUrl()}/api/audit/scan/${encodeURIComponent(scanId)}/report${qs}`;
+    const res = await fetch(url, { headers: { Accept: '*/*' } });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new ApiError(text || `Report HTTP ${res.status}`, res.status);
+    }
+    return res.blob();
+  },
+
+  /** SSE URL for scan progress (Brain proxies Eyraaaa). */
+  scanEventsUrl(scanId) {
+    return `${getBaseUrl()}/api/audit/scan/${encodeURIComponent(scanId)}/events`;
+  },
+
+  /**
+   * Sandboxed Python execute (Brain timeout + blocked network/process APIs).
+   * @param {{code:string, language?:string, file_name?:string}} body
+   */
+  execute(body) {
+    return request('/api/execute', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 15_000,
+    });
   },
 };
