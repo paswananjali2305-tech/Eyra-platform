@@ -1,0 +1,9 @@
+# Optional but recommended analysis tools used by Eyraaaa CodeAudit (AST / complexity).
+# Install into the same Python that is on PATH when the Node server runs scans:
+#   pip install -r requirements.txt
+#
+# Ruff: fast Python lint (python -m ruff / ruff on PATH)
+# Radon: cyclomatic complexity + maintainability (python -m radon)
+
+ruff>=0.8.0
+radon>=6.0.1

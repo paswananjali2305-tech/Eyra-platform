@@ -122,6 +122,12 @@ export function formatStatus(status) {
  */
 export function shortSessionTag(sessionId, index = 0) {
   if (!sessionId) return `#${String(index + 1).padStart(4, '0')}`;
-  const compact = sessionId.replace(/-/g, '');
-  return `#${compact.slice(0, 4)}`;
+  const raw = String(sessionId).trim();
+  // EYRA-F1B3237685E4 → #F1B3 (skip shared EYRA prefix so rows stay unique)
+  const withoutPrefix = raw.replace(/^EYRA[-_]?/i, '');
+  const compact = withoutPrefix.replace(/[^a-zA-Z0-9]/g, '');
+  if (compact.length >= 4) return `#${compact.slice(0, 4).toUpperCase()}`;
+  const fallback = raw.replace(/[^a-zA-Z0-9]/g, '');
+  if (fallback.length >= 4) return `#${fallback.slice(-4).toUpperCase()}`;
+  return `#${String(index + 1).padStart(4, '0')}`;
 }

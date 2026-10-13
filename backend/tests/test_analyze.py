@@ -74,3 +74,33 @@ def test_invalid_empty_code(client: TestClient):
         },
     )
     assert r.status_code == 422
+
+
+def test_config_engine_toggles_roundtrip(client: TestClient):
+    got = client.get("/api/config")
+    assert got.status_code == 200
+    body = got.json()
+    assert body["engine_ast"] is True
+    assert body["engine_security"] is True
+    assert body["engine_todos"] is True
+    assert body["engine_deps"] is True
+
+    saved = client.put(
+        "/api/config",
+        json={
+            "engine_ast": True,
+            "engine_security": False,
+            "engine_todos": True,
+            "engine_deps": False,
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    data = saved.json()
+    assert data["engine_ast"] is True
+    assert data["engine_security"] is False
+    assert data["engine_todos"] is True
+    assert data["engine_deps"] is False
+
+    again = client.get("/api/config").json()
+    assert again["engine_security"] is False
+    assert again["engine_deps"] is False

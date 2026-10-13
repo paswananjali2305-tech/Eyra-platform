@@ -221,3 +221,277 @@
 * {
   scrollbar-width: none;
 }
+
+/* Runtime terminal panel — visible scroller (overrides shell hide) */
+.eyra-terminal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(53, 214, 242, 0.45) rgba(15, 20, 30, 0.9);
+}
+.eyra-terminal-scroll::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+}
+.eyra-terminal-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 20, 30, 0.9);
+  border-radius: 4px;
+}
+.eyra-terminal-scroll::-webkit-scrollbar-thumb {
+  background: rgba(53, 214, 242, 0.4);
+  border-radius: 4px;
+}
+.eyra-terminal-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(53, 214, 242, 0.65);
+}
+
+/* Read-only terminal: looks interactive, blocks caret editing */
+.eyra-terminal-readonly {
+  caret-color: transparent;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Analysis suggested-correction diff — stitch-style +/- */
+.eyra-diff-panel {
+  background: transparent;
+}
+.eyra-diff-panel .text-error {
+  color: #ff8a95 !important;
+}
+.eyra-diff-panel .text-tertiary {
+  color: #5eead4 !important;
+}
+
+/* Memory: horizontal investigation card strip */
+.eyra-memory-strip {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(53, 214, 242, 0.45) rgba(15, 20, 30, 0.9);
+}
+.eyra-memory-strip::-webkit-scrollbar {
+  display: block;
+  height: 8px;
+}
+.eyra-memory-strip::-webkit-scrollbar-track {
+  background: rgba(15, 20, 30, 0.9);
+  border-radius: 4px;
+}
+.eyra-memory-strip::-webkit-scrollbar-thumb {
+  background: rgba(53, 214, 242, 0.4);
+  border-radius: 4px;
+}
+.eyra-memory-card {
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-surface-container, #1a2332);
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+.eyra-memory-card .line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Auth + welcome intro */
+.eyra-auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(53, 214, 242, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(27, 55, 190, 0.18), transparent 50%),
+    #0e131e;
+}
+.eyra-auth-panel {
+  width: min(100%, 26rem);
+  border: 1px solid rgba(60, 73, 76, 0.55);
+  background: rgba(9, 14, 25, 0.92);
+  padding: 1.75rem 1.5rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+.eyra-auth-panel--slim {
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+.eyra-auth-brand {
+  margin-bottom: 1.25rem;
+}
+.eyra-auth-mark {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #9cedff;
+}
+.eyra-auth-tag {
+  margin: 0.25rem 0 0;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: #859397;
+}
+.eyra-auth-title {
+  margin: 0;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #dee2f2;
+}
+.eyra-auth-sub {
+  margin: 0.4rem 0 1.25rem;
+  font-size: 0.875rem;
+  color: #859397;
+}
+.eyra-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.eyra-auth-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: #bbc9cd;
+}
+.eyra-auth-optional {
+  color: #859397;
+  font-weight: 400;
+}
+.eyra-auth-input {
+  border: 1px solid rgba(60, 73, 76, 0.7);
+  background: #161b27;
+  color: #dee2f2;
+  border-radius: 0.25rem;
+  padding: 0.55rem 0.7rem;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+}
+.eyra-auth-input:focus {
+  border-color: rgba(53, 214, 242, 0.65);
+  box-shadow: 0 0 0 1px rgba(53, 214, 242, 0.25);
+}
+.eyra-auth-btn {
+  margin-top: 0.35rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: #35d6f2;
+  color: #00363f;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+}
+.eyra-auth-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.eyra-auth-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.eyra-auth-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #ffb4ab;
+}
+.eyra-auth-footer {
+  margin: 1.1rem 0 0;
+  font-size: 0.85rem;
+  color: #859397;
+}
+.eyra-auth-footer a {
+  color: #9cedff;
+  text-decoration: none;
+}
+.eyra-auth-footer a:hover {
+  text-decoration: underline;
+}
+
+.eyra-welcome-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(53, 214, 242, 0.1), transparent 55%),
+    #090e19;
+  padding: 2rem;
+}
+.eyra-welcome-code {
+  margin: 0;
+  width: min(100%, 36rem);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+  line-height: 1.7;
+  color: #dee2f2;
+  white-space: pre-wrap;
+}
+.eyra-welcome-line {
+  min-height: 1.7em;
+}
+.eyra-welcome-prompt {
+  color: #35d6f2;
+}
+.eyra-welcome-out {
+  color: #bbc3ff;
+}
+.eyra-welcome-caret {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1.05em;
+  margin-left: 0.15ch;
+  vertical-align: text-bottom;
+  background: #35d6f2;
+  animation: eyra-caret-blink 0.85s steps(1) infinite;
+}
+@keyframes eyra-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Hide stitch mock HTML until idle scrub / live hydrate reveals the shell */
+.eyra-stitch-gate:not(.eyra-stitch-gate--ready) > .stitch-screen {
+  visibility: hidden !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+.eyra-stitch-gate:not(.eyra-stitch-gate--ready)::before {
+  content: "";
+  display: block;
+  min-height: min(42vh, 28rem);
+  margin: 1rem 1.5rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    90deg,
+    #161b27 0%,
+    #1b1f2b 45%,
+    #252a36 50%,
+    #1b1f2b 55%,
+    #161b27 100%
+  );
+  background-size: 220% 100%;
+  animation: eyra-stitch-shimmer 1.15s ease-in-out infinite;
+}
+@keyframes eyra-stitch-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+.eyra-stitch-gate--ready::before {
+  display: none !important;
+}

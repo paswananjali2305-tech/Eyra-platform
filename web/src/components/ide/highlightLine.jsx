@@ -36,12 +36,71 @@ const PY_KEYWORDS = new Set([
   'is',
 ]);
 
+const JS_KEYWORDS = new Set([
+  'const',
+  'let',
+  'var',
+  'function',
+  'return',
+  'if',
+  'else',
+  'for',
+  'while',
+  'class',
+  'extends',
+  'import',
+  'from',
+  'export',
+  'default',
+  'async',
+  'await',
+  'try',
+  'catch',
+  'finally',
+  'throw',
+  'new',
+  'this',
+  'typeof',
+  'instanceof',
+  'true',
+  'false',
+  'null',
+  'undefined',
+  'switch',
+  'case',
+  'break',
+  'continue',
+  'of',
+  'in',
+]);
+
 function languageKind(language) {
   const l = (language || '').toLowerCase();
   if (l.includes('json')) return 'json';
   if (l.includes('markdown') || l === 'md') return 'md';
   if (l.includes('html')) return 'html';
+  if (l.includes('css') || l.includes('scss')) return 'css';
+  if (l.includes('sql')) return 'sql';
   if (l.includes('text') || l.includes('plain')) return 'text';
+  if (
+    l.includes('javascript') ||
+    l.includes('typescript') ||
+    l === 'js' ||
+    l === 'ts' ||
+    l === 'tsx' ||
+    l === 'jsx'
+  ) {
+    return 'javascript';
+  }
+  if (
+    l.includes('java') ||
+    l.includes('c++') ||
+    l.includes('cpp') ||
+    l === 'c' ||
+    l.includes('go')
+  ) {
+    return 'javascript'; // C-family / braces — reuse JS highlighter
+  }
   return 'python';
 }
 
@@ -159,6 +218,101 @@ export function highlightLine(text, language) {
       );
     }
     return <span className="text-on-surface">{text}</span>;
+  }
+
+  // JavaScript / TypeScript (same tokenizer family as Python, different keywords)
+  if (kind === 'javascript') {
+    const commentIdx = (() => {
+      let inStr = null;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inStr) {
+          if (c === '\\') {
+            i++;
+            continue;
+          }
+          if (c === inStr) inStr = null;
+          continue;
+        }
+        if (c === "'" || c === '"' || c === '`') {
+          inStr = c;
+          continue;
+        }
+        if (c === '/' && text[i + 1] === '/') return i;
+      }
+      return -1;
+    })();
+    const codePart = commentIdx >= 0 ? text.slice(0, commentIdx) : text;
+    const commentPart = commentIdx >= 0 ? text.slice(commentIdx) : '';
+    const tokens = [];
+    const re =
+      /((?:`[\s\S]*?`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'))|(\b\d+\.?\d*\b)|(\b[A-Za-z_$]\w*\b)|(\s+)|(.)/g;
+    let m;
+    let key = 0;
+    while ((m = re.exec(codePart)) !== null) {
+      const [, str, num, word, space, other] = m;
+      if (space) {
+        tokens.push(<span key={key++}>{space}</span>);
+        continue;
+      }
+      if (str) {
+        tokens.push(
+          <span key={key++} className="text-tertiary">
+            {str}
+          </span>,
+        );
+        continue;
+      }
+      if (num) {
+        tokens.push(
+          <span key={key++} className="text-[#c792ea]">
+            {num}
+          </span>,
+        );
+        continue;
+      }
+      if (word) {
+        if (JS_KEYWORDS.has(word)) {
+          tokens.push(
+            <span key={key++} className="font-medium text-secondary">
+              {word}
+            </span>,
+          );
+        } else {
+          const after = codePart.slice(m.index + word.length);
+          const isCall = /^\s*\(/.test(after);
+          if (isCall || /^[A-Z]/.test(word)) {
+            tokens.push(
+              <span key={key++} className="font-medium text-primary">
+                {word}
+              </span>,
+            );
+          } else {
+            tokens.push(
+              <span key={key++} className="text-on-surface">
+                {word}
+              </span>,
+            );
+          }
+        }
+        continue;
+      }
+      if (other) {
+        tokens.push(
+          <span key={key++} className="text-outline">
+            {other}
+          </span>,
+        );
+      }
+    }
+    if (commentPart) {
+      tokens.push(
+        <span key={key++} className="italic text-outline">
+          {commentPart}
+        </span>,
+      );
+    }
+    return tokens.length ? tokens : text;
   }
 
   // Python

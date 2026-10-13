@@ -8,3 +8,7 @@ backend/.pytest_cache/
 *.pyc
 .DS_Store
 web/dist/
+codeaudit/server/node_modules/
+codeaudit/server/sandbox_uploads/
+codeaudit/server/data/
+codeaudit/server/temp_uploads/

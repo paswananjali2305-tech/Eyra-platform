@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ApiError, api, getBaseUrl, setBaseUrl as persistBaseUrl } from '../api/client';
+import { api, getBaseUrl, setBaseUrl as persistBaseUrl } from '../api/client';
 
 const EyraContext = createContext(null);
 
@@ -21,6 +21,8 @@ export function EyraProvider({ children }) {
   const [statusError, setStatusError] = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [activeResult, setActiveResult] = useState(null);
+  /** Last sandbox /api/execute payload (Analysis page verification + dry-run). */
+  const [lastExecResult, setLastExecResult] = useState(null);
   const [mode, setModeState] = useState(() => {
     try {
       return localStorage.getItem(MODE_KEY) === 'audit' ? 'audit' : 'runtime';
@@ -141,6 +143,16 @@ export function EyraProvider({ children }) {
     }
   }, []);
 
+  const clearActiveScan = useCallback(() => {
+    setActiveScan(null);
+    setActiveScanIdState(null);
+    try {
+      localStorage.removeItem(SCAN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const refreshScan = useCallback(
     async (scanId) => {
       const id = scanId || activeScanId;
@@ -151,13 +163,17 @@ export function EyraProvider({ children }) {
         if (scan) {
           setActiveScan(scan);
           setActiveScanId(scan.id || id);
+          return scan;
         }
-        return scan;
-      } catch (err) {
+        clearActiveScan();
+        return null;
+      } catch {
+        // Eyraaaa down / missing / timeout — drop stale pointer so UI is not stuck hydrating
+        clearActiveScan();
         return null;
       }
     },
-    [activeScanId, setActiveScanId],
+    [activeScanId, setActiveScanId, clearActiveScan],
   );
 
   const adoptScan = useCallback(
@@ -176,7 +192,14 @@ export function EyraProvider({ children }) {
       if (scan.id) setActiveScanId(scan.id);
       setActiveScan((prev) => {
         if (prev?.id && scan.id && prev.id === scan.id) {
-          return { ...prev, ...scan };
+          return {
+            ...prev,
+            ...scan,
+            // Client-only ingest fields (not stored on Eyraaaa)
+            sourceType: scan.sourceType || prev.sourceType,
+            archiveName: scan.archiveName || prev.archiveName,
+            sourceLabel: scan.sourceLabel || prev.sourceLabel,
+          };
         }
         return scan;
       });
@@ -200,7 +223,7 @@ export function EyraProvider({ children }) {
   const refreshScanList = useCallback(async () => {
     try {
       const data = await api.listScans();
-      const scans = data?.scans || [];
+      const scans = Array.isArray(data) ? data : data?.scans || [];
       setScanList(scans);
       return scans;
     } catch {
@@ -216,25 +239,22 @@ export function EyraProvider({ children }) {
       .then((data) => {
         if (cancelled) return;
         const scan = data?.scan || data;
-        if (scan) setActiveScan(scan);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        // Eyraaaa is in-memory: IDs vanish after restart — clear stale pointer
-        if (err instanceof ApiError && err.status === 404) {
-          setActiveScan(null);
-          setActiveScanIdState(null);
-          try {
-            localStorage.removeItem(SCAN_KEY);
-          } catch {
-            /* ignore */
-          }
+        if (scan?.id) {
+          setActiveScan(scan);
+          return;
         }
+        // Empty / malformed payload — clear so Code Audit is not stuck loading
+        clearActiveScan();
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // 404 after Eyraaaa restart, 503 when audit engine down, timeouts — all clear
+        clearActiveScan();
       });
     return () => {
       cancelled = true;
     };
-  }, [backendUrl, activeScanId]);
+  }, [backendUrl, activeScanId, clearActiveScan]);
 
   const setBackendUrl = useCallback((url) => {
     persistBaseUrl(url);
@@ -314,6 +334,8 @@ export function EyraProvider({ children }) {
       activeResult,
       adoptResult,
       setActiveResult,
+      lastExecResult,
+      setLastExecResult,
       eyesConnected,
       setEyes,
       mode,
@@ -330,6 +352,7 @@ export function EyraProvider({ children }) {
       setActiveScanId,
       activeScan,
       setActiveScan,
+      clearActiveScan,
       adoptScan,
       refreshScan,
       scanList,
@@ -344,6 +367,7 @@ export function EyraProvider({ children }) {
       refreshStatus,
       activeResult,
       adoptResult,
+      lastExecResult,
       eyesConnected,
       setEyes,
       mode,
@@ -359,6 +383,7 @@ export function EyraProvider({ children }) {
       activeScanId,
       setActiveScanId,
       activeScan,
+      clearActiveScan,
       adoptScan,
       refreshScan,
       scanList,

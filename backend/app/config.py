@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     groq_model: str = DEFAULT_RUNTIME_MODEL
     groq_model_runtime: str = ""
     groq_model_audit: str = ""
+    # OpenAI-compatible LLM routing (groq | openai | openrouter)
+    llm_provider: str = "groq"
+    llm_base_url: str = ""
     eyra_host: str = "127.0.0.1"
     eyra_port: int = 8000
     eyra_db_path: str = str(DEFAULT_DB)
@@ -33,8 +36,10 @@ class Settings(BaseSettings):
         "http://localhost:5174,http://127.0.0.1:5174"
     )
     eyra_audit_base_url: str = "http://127.0.0.1:5000"
-    eyra_exec_timeout_s: float = 3.0
+    eyra_exec_timeout_s: float = 30.0
     eyra_audit_enrich_limit: int = Field(default=12, ge=1, le=40)
+    # HMAC secret for access tokens (set EYRA_AUTH_SECRET in .env for production-like demos)
+    eyra_auth_secret: str = ""
 
     @model_validator(mode="after")
     def resolve_model_aliases(self) -> "Settings":

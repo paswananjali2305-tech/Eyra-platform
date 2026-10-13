@@ -69,19 +69,31 @@ async def _groq_chat_json(
             {"role": "user", "content": json.dumps(user_payload)},
         ],
     }
+    base = (getattr(settings, "llm_base_url", None) or "").rstrip("/")
+    if not base:
+        provider = (getattr(settings, "llm_provider", None) or "groq").lower()
+        if provider == "openai":
+            base = "https://api.openai.com/v1"
+        elif provider == "openrouter":
+            base = "https://openrouter.ai/api/v1"
+        else:
+            base = "https://api.groq.com/openai/v1"
     headers = {
         "Authorization": f"Bearer {settings.groq_api_key}",
         "Content-Type": "application/json",
     }
+    if "openrouter.ai" in base:
+        headers["HTTP-Referer"] = "https://eyra.local"
+        headers["X-Title"] = "EYRA"
     async with httpx.AsyncClient(timeout=timeout_s) as client:
         response = await client.post(
-            "https://api.groq.com/openai/v1/chat/completions",
+            f"{base}/chat/completions",
             headers=headers,
             json=payload,
         )
     if response.status_code >= 400:
         raise RuntimeError(
-            f"Groq API error HTTP {response.status_code}: {response.text[:300]}"
+            f"LLM API error HTTP {response.status_code}: {response.text[:300]}"
         )
     data = response.json()
     content = data["choices"][0]["message"]["content"]

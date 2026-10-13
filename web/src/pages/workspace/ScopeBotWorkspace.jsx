@@ -1,123 +1,261 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor } from '../../components/ide/CodeEditor.jsx';
 import { FileTabBar } from '../../components/ide/FileTabBar.jsx';
+import { EyraAssistantChat } from '../../components/EyraAssistantChat.jsx';
 import { useEyra } from '../../context/EyraContext.jsx';
-import { FILE_CONTENTS } from '../../data/mockRepo.js';
 import { useOpenTabs } from '../../hooks/useOpenTabs.js';
+import {
+  AUDIT_LANGUAGES,
+  apiLanguageFromId,
+  languageById,
+  languageIdFromPath,
+} from '../../lib/auditLanguages.js';
+import { auditFileText } from '../../lib/liveFileAudit.js';
+import { LanguageSelect } from '../../components/ide/LanguageLogo.jsx';
+import { loadWorkspaceSlice, saveWorkspaceSlice } from '../../lib/workspaceDraft.js';
 
-const HITL_STEPS = [
-  { id: 'suggests', label: 'Suggests' },
-  { id: 'reviews', label: 'Reviews' },
-  { id: 'approves', label: 'Approves' },
-  { id: 'applies', label: 'Applies' },
-];
+const DEFAULT_LANG = 'Python';
+const LIVE_DEBOUNCE_MS = 900;
 
-const NEW_FILE_TEMPLATE = `# New scratch file — write or paste code here
+function scratchPath(seq, langId) {
+  const id = langId || DEFAULT_LANG;
+  const lang = languageById(id);
+  return `scratch/untitled-${seq}.${lang.ext || 'py'}`;
+}
 
-def main():
-    pass
+const CONSOLE_TABS = new Set(['terminal', 'output', 'debug']);
 
+function defaultEditor() {
+  const initialPath = scratchPath(1, DEFAULT_LANG);
+  const lang = languageById(DEFAULT_LANG);
+  const text = lang.template || '';
+  return {
+    scratchFiles: {
+      [initialPath]: {
+        languageId: DEFAULT_LANG,
+        language: lang.label,
+        dirty: true,
+        text,
+      },
+    },
+    openTabs: [initialPath],
+    activeId: initialPath,
+    scratchSeq: 2,
+    savedSnapshot: { [initialPath]: text },
+    consoleTab: 'terminal',
+    syncedSnippet: '',
+    newFileLangId: DEFAULT_LANG,
+  };
+}
 
-if __name__ == "__main__":
-    main()
-`;
+function bootEditor() {
+  const saved = loadWorkspaceSlice('editor');
+  const filesIn = saved?.scratchFiles;
+  if (!filesIn || typeof filesIn !== 'object') return defaultEditor();
 
-function linesToText(lines) {
-  if (!lines?.length) return '';
-  return lines.map((l) => (typeof l === 'string' ? l : l?.text ?? '')).join('\n');
+  /** @type {Record<string, { languageId: string, language: string, dirty: boolean, text: string }>} */
+  const scratchFiles = {};
+  for (const [path, file] of Object.entries(filesIn)) {
+    if (!path || !file || typeof file.text !== 'string') continue;
+    const languageId = file.languageId || languageIdFromPath(path);
+    const lang = languageById(languageId);
+    scratchFiles[path] = {
+      languageId,
+      language: typeof file.language === 'string' ? file.language : lang.label,
+      dirty: Boolean(file.dirty),
+      text: file.text,
+    };
+  }
+  const openTabs = (Array.isArray(saved.openTabs) ? saved.openTabs : Object.keys(scratchFiles)).filter(
+    (id) => scratchFiles[id],
+  );
+  if (!openTabs.length) return defaultEditor();
+
+  const activeId = openTabs.includes(saved.activeId) ? saved.activeId : openTabs[0];
+  /** @type {Record<string, string>} */
+  const savedSnapshot = {};
+  if (saved.savedSnapshot && typeof saved.savedSnapshot === 'object') {
+    for (const id of openTabs) {
+      if (typeof saved.savedSnapshot[id] === 'string') savedSnapshot[id] = saved.savedSnapshot[id];
+    }
+  }
+  let scratchSeq = 2;
+  for (const path of Object.keys(scratchFiles)) {
+    const match = /untitled-(\d+)\./.exec(path);
+    if (match) scratchSeq = Math.max(scratchSeq, Number(match[1]) + 1);
+  }
+  if (Number.isFinite(saved.scratchSeq) && saved.scratchSeq >= scratchSeq) {
+    scratchSeq = saved.scratchSeq;
+  }
+  const langId = scratchFiles[activeId]?.languageId || DEFAULT_LANG;
+  return {
+    scratchFiles,
+    openTabs,
+    activeId,
+    scratchSeq,
+    savedSnapshot,
+    consoleTab: CONSOLE_TABS.has(saved.consoleTab) ? saved.consoleTab : 'terminal',
+    syncedSnippet: typeof saved.syncedSnippet === 'string' ? saved.syncedSnippet : '',
+    newFileLangId: languageById(saved.newFileLangId || langId).id || langId,
+  };
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text ?? ''], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'untitled.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /**
- * Runtime Debugging — editor + tabs (+ new file) + terminal + ScopeBot.
+ * Runtime Debugging — multi-language editor + save/download + live ScopeBot sync.
  */
 export function ScopeBotWorkspace({
   loading = false,
   statusNote = '',
   statusError = '',
   execResult = null,
+  runtimePulse = null,
   onAnalyze,
   onSandbox,
   onCopyPatch,
+  onClearConsole,
 }) {
-  const { showToast, activeResult, status } = useEyra();
-  const { openTabs, activeId, setActiveId, openFile, closeTab } = useOpenTabs([
-    'test.py',
-    'main.py',
-    'auth/jwt_handler.py',
-  ]);
-  const [scratchFiles, setScratchFiles] = useState({});
-  const [scratchSeq, setScratchSeq] = useState(1);
-  /** Edits to mockRepo / opened files — enables analyzing the active buffer, not a frozen SAMPLE. */
-  const [bufferEdits, setBufferEdits] = useState({});
-  const [consoleTab, setConsoleTab] = useState('logs');
-  const [hitlStep, setHitlStep] = useState(0);
+  const { showToast, activeResult, status, adoptResult } = useEyra();
+  const bootRef = useRef(null);
+  if (!bootRef.current) bootRef.current = bootEditor();
+  const boot = bootRef.current;
+  const { openTabs, activeId, setActiveId, openFile, closeTab } = useOpenTabs(
+    boot.openTabs,
+    boot.activeId,
+  );
+  const [scratchFiles, setScratchFiles] = useState(boot.scratchFiles);
+  const [scratchSeq, setScratchSeq] = useState(boot.scratchSeq);
+  const [newFileLangId, setNewFileLangId] = useState(boot.newFileLangId);
+  const [savedSnapshot, setSavedSnapshot] = useState(boot.savedSnapshot);
+  const [consoleTab, setConsoleTab] = useState(boot.consoleTab);
+  const [liveWatching, setLiveWatching] = useState(false);
+  const [syncedSnippet, setSyncedSnippet] = useState(boot.syncedSnippet);
+  const analyzeGen = useRef(0);
+  const loadingRef = useRef(loading);
+  const onAnalyzeRef = useRef(onAnalyze);
+  const bufferRef = useRef('');
+  const payloadRef = useRef(null);
+  loadingRef.current = loading;
+  onAnalyzeRef.current = onAnalyze;
 
-  const isScratch = Boolean(activeId && scratchFiles[activeId]);
-  const file = isScratch
-    ? scratchFiles[activeId]
-    : FILE_CONTENTS[activeId] || FILE_CONTENTS['test.py'];
-  const mockFinding = isScratch ? null : file.finding;
+  const file = (activeId && scratchFiles[activeId]) || null;
+  const languageId =
+    file?.languageId || (activeId ? languageIdFromPath(activeId) : DEFAULT_LANG);
+  const langMeta = languageById(languageId);
+  const bufferText = file?.text ?? '';
+  bufferRef.current = bufferText;
 
-  const bufferText = isScratch
-    ? file?.text || ''
-    : bufferEdits[activeId] != null
-      ? bufferEdits[activeId]
-      : linesToText(file?.lines);
+  const dirty = useMemo(() => {
+    if (!activeId) return false;
+    const baseline = savedSnapshot[activeId];
+    if (baseline == null) return Boolean(file?.dirty);
+    return bufferText !== baseline;
+  }, [activeId, bufferText, savedSnapshot, file?.dirty]);
 
   const buildPayload = useCallback(() => {
-    const baseName = (activeId || 'test.py').split('/').pop() || 'test.py';
-    const langRaw = String(file?.language || 'python').toLowerCase();
+    const baseName = (activeId || `untitled.${langMeta.ext}`).split('/').pop() || 'untitled.py';
     return {
       file_name: baseName,
-      language: langRaw.includes('py') ? 'python' : langRaw.split(/\s+/)[0] || 'python',
+      language: apiLanguageFromId(languageId),
       code_snippet: bufferText,
       terminal_output: activeResult?.terminal_output || '',
       stack_trace: activeResult?.stack_trace || '',
       error_type: activeResult?.error_type || undefined,
       project_name: activeResult?.project_name || 'default',
     };
-  }, [activeId, file?.language, bufferText, activeResult]);
+  }, [activeId, languageId, langMeta.ext, bufferText, activeResult]);
 
-  /** Prefer live Brain result; keep mock finding as visual fallback. */
+  payloadRef.current = buildPayload;
+
+  const editorSnap = useRef(null);
+  editorSnap.current = {
+    scratchFiles,
+    openTabs,
+    activeId,
+    scratchSeq,
+    savedSnapshot,
+    consoleTab,
+    syncedSnippet,
+    newFileLangId,
+  };
+  useEffect(() => {
+    saveWorkspaceSlice('editor', editorSnap.current);
+    return () => saveWorkspaceSlice('editor', editorSnap.current);
+  }, [
+    scratchFiles,
+    openTabs,
+    activeId,
+    scratchSeq,
+    savedSnapshot,
+    consoleTab,
+    syncedSnippet,
+    newFileLangId,
+  ]);
+
+  /** Instant local checks while typing (same engine as Code Audit editor). */
+  const liveFindings = useMemo(
+    () => (activeId ? auditFileText(activeId, bufferText) : []),
+    [activeId, bufferText],
+  );
+  const liveFinding = liveFindings[0] || null;
+
+  /** Brain result when it matches current buffer; otherwise prefer live finding. */
+  const brainSynced = Boolean(activeResult) && syncedSnippet === bufferText;
+  const brainHasFault = useMemo(() => {
+    if (!brainSynced || !activeResult) return false;
+    const t = String(activeResult.error_type || '').trim();
+    if (!t || /^none$/i.test(t) || t === 'null' || t === 'undefined') return false;
+    const st = String(activeResult.status || '').toLowerCase();
+    if (st === 'verified' && !activeResult.stack_trace && !activeResult.error_summary) return false;
+    return true;
+  }, [brainSynced, activeResult]);
   const finding = useMemo(() => {
-    if (activeResult) {
-      const lineHint =
-        mockFinding?.line ||
-        (() => {
-          const m = String(activeResult.stack_trace || '').match(/line (\d+)/i);
-          return m ? Number(m[1]) : null;
-        })();
+    if (brainHasFault && activeResult) {
+      const lineHint = (() => {
+        const m = String(activeResult.stack_trace || '').match(/line (\d+)/i);
+        return m ? Number(m[1]) : liveFinding?.line || null;
+      })();
       const evidence0 = activeResult.evidence?.[0];
       const evidence1 = activeResult.evidence?.[1];
       return {
-        title: activeResult.error_type || mockFinding?.title || 'Runtime fault',
-        summary: activeResult.root_cause || activeResult.explanation || mockFinding?.summary,
+        source: 'brain',
+        title: activeResult.error_type || 'Runtime fault',
+        summary: activeResult.root_cause || activeResult.explanation || '',
         line: lineHint,
-        cwe: evidence0?.kind || activeResult.verification?.status || mockFinding?.cwe || 'Runtime',
-        impact:
-          evidence1?.detail ||
-          activeResult.error_summary ||
-          activeResult.explanation ||
-          mockFinding?.impact,
+        cwe: evidence0?.kind || activeResult.verification?.status || 'Runtime',
+        impact: evidence1?.detail || activeResult.error_summary || activeResult.explanation || '',
         patch:
           activeResult.suggested_correction?.diff_unified ||
           activeResult.suggested_correction?.corrected_code ||
-          mockFinding?.patch ||
           '',
         verification: activeResult.verification,
       };
     }
-    return mockFinding;
-  }, [activeResult, mockFinding]);
-
-  const certaintyLabel = useMemo(() => {
-    if (activeResult?.confidence != null && !Number.isNaN(Number(activeResult.confidence))) {
-      const c = Number(activeResult.confidence);
-      const pct = c <= 1 ? c * 100 : c;
-      return `${pct.toFixed(1)}% Certainty`;
+    if (liveFinding) {
+      return {
+        source: 'live',
+        title: liveFinding.title,
+        summary: liveFinding.summary,
+        line: liveFinding.line,
+        cwe: liveFinding.cwe || 'LIVE',
+        impact: liveFinding.impact || liveFinding.summary,
+        patch: liveFinding.patch || '',
+        verification: null,
+      };
     }
-    return '99.2% Certainty';
-  }, [activeResult]);
+    return null;
+  }, [brainHasFault, activeResult, liveFinding]);
 
   const modelLabel = useMemo(() => {
     const model = status?.groq_model_runtime || status?.groq_model || 'local heuristic';
@@ -125,129 +263,309 @@ export function ScopeBotWorkspace({
     return `${model} · ${src}`;
   }, [status, activeResult]);
 
-  const exitCode = execResult
-    ? execResult.exit_code
-    : finding
-      ? 1
-      : 0;
+  const exitCode = execResult != null ? execResult.exit_code : null;
+  const execStatus = execResult?.status || null;
+
+  const runCommandLine = useMemo(() => {
+    const lang = apiLanguageFromId(languageId);
+    const file = (activeId || 'untitled').split('/').pop() || 'untitled';
+    if (lang === 'python') return `python ${file}`;
+    if (lang === 'javascript') return `node ${file}`;
+    if (lang === 'typescript') return `tsx ${file}`;
+    if (lang === 'java') return `javac ${file} && java Main`;
+    if (lang === 'go') return `go run ${file}`;
+    if (lang === 'c') return `gcc ${file} -o program && ./program`;
+    if (lang === 'cpp') return `g++ ${file} -o program && ./program`;
+    return `run ${lang} ${file}`;
+  }, [languageId, activeId]);
+
+  const clearConsole = useCallback(() => {
+    onClearConsole?.();
+    showToast?.('Terminal cleared', 'info');
+  }, [onClearConsole, showToast]);
+
+  /** Debug Logs status color: green ok · red fail · amber pause/timeout · cyan running */
+  const debugTone = useMemo(() => {
+    if (loading && !execResult) {
+      return {
+        key: 'running',
+        label: 'RUNNING',
+        icon: 'pending',
+        badge: 'bg-primary/20 text-primary border-primary/40',
+        line: 'text-primary',
+        detail: 'Sandbox execution in progress…',
+      };
+    }
+    if (!execResult) {
+      return {
+        key: 'idle',
+        label: 'IDLE',
+        icon: 'pause_circle',
+        badge: 'bg-outline-variant/20 text-outline border-outline-variant/40',
+        line: 'text-outline',
+        detail: 'Waiting for Run',
+      };
+    }
+    const st = String(execResult.status || '');
+    if (execResult.ok || st === 'SUCCESS') {
+      return {
+        key: 'ok',
+        label: 'SUCCESS',
+        icon: 'check_circle',
+        badge: 'bg-tertiary-container/30 text-tertiary border-tertiary/40',
+        line: 'text-tertiary',
+        detail: 'Run completed successfully',
+      };
+    }
+    if (st === 'TIMEOUT' || execResult.timed_out) {
+      return {
+        key: 'pause',
+        label: 'TIMEOUT',
+        icon: 'hourglass_empty',
+        badge: 'bg-amber-500/20 text-amber-300 border-amber-400/40',
+        line: 'text-amber-300',
+        detail: 'Execution timed out / paused',
+      };
+    }
+    if (st === 'RUNTIME_UNAVAILABLE' || st === 'EXECUTION_BLOCKED') {
+      return {
+        key: 'pause',
+        label: st === 'EXECUTION_BLOCKED' ? 'BLOCKED' : 'UNAVAILABLE',
+        icon: 'pause_circle',
+        badge: 'bg-amber-500/20 text-amber-300 border-amber-400/40',
+        line: 'text-amber-300',
+        detail: execResult.stderr || 'Runtime not ready',
+      };
+    }
+    if (st === 'COMPILE_ERROR') {
+      return {
+        key: 'fail',
+        label: 'COMPILE ERROR',
+        icon: 'error',
+        badge: 'bg-error-container/30 text-error border-error/40',
+        line: 'text-error',
+        detail: execResult.error_type || 'Compilation failed',
+      };
+    }
+    return {
+      key: 'fail',
+      label: st || 'FAILED',
+      icon: 'error',
+      badge: 'bg-error-container/30 text-error border-error/40',
+      line: 'text-error',
+      detail: execResult.error_type || `Exit ${execResult.exit_code}`,
+    };
+  }, [loading, execResult]);
+
+  const issueLines = useMemo(() => {
+    /** @type {Record<number, string>} */
+    const map = {};
+    for (const iss of liveFindings) {
+      const ln = Number(iss.line);
+      if (!ln) continue;
+      if (!map[ln]) map[ln] = String(iss.title || 'Issue').slice(0, 48);
+    }
+    if (finding?.line && !map[finding.line]) {
+      map[finding.line] = String(finding.title || 'Issue').slice(0, 48);
+    }
+    return map;
+  }, [liveFindings, finding]);
 
   const tabItems = useMemo(
     () =>
-      openTabs.map((id) => ({
-        id,
-        name: id.split('/').pop(),
-        dirty: scratchFiles[id] ? true : FILE_CONTENTS[id]?.dirty,
-        severity: scratchFiles[id] ? null : FILE_CONTENTS[id]?.finding ? 'critical' : null,
-      })),
-    [openTabs, scratchFiles],
+      openTabs.map((id) => {
+        const baseline = savedSnapshot[id];
+        const cur = scratchFiles[id]?.text ?? '';
+        const dirtyTab = baseline == null ? Boolean(scratchFiles[id]?.dirty) : cur !== baseline;
+        return {
+          id,
+          name: id.split('/').pop(),
+          dirty: dirtyTab,
+          severity: null,
+          languageId: scratchFiles[id]?.languageId || languageIdFromPath(id),
+        };
+      }),
+    [openTabs, scratchFiles, savedSnapshot],
   );
+
+  const handleRun = useCallback(() => {
+    setConsoleTab('terminal');
+    (onSandbox || onAnalyze)?.(buildPayload());
+  }, [onSandbox, onAnalyze, buildPayload]);
 
   const dirtyIds = useMemo(() => {
     const set = new Set();
     for (const id of openTabs) {
-      if (scratchFiles[id] || FILE_CONTENTS[id]?.dirty || bufferEdits[id] != null) set.add(id);
+      const baseline = savedSnapshot[id];
+      const cur = scratchFiles[id]?.text ?? '';
+      if (baseline == null ? scratchFiles[id]?.dirty : cur !== baseline) set.add(id);
     }
     return set;
-  }, [openTabs, scratchFiles, bufferEdits]);
+  }, [openTabs, scratchFiles, savedSnapshot]);
+
+  const setActiveText = useCallback(
+    (text) => {
+      if (!activeId) return;
+      setScratchFiles((prev) => ({
+        ...prev,
+        [activeId]: {
+          ...(prev[activeId] || {
+            languageId,
+            language: langMeta.label,
+          }),
+          text,
+          dirty: true,
+        },
+      }));
+    },
+    [activeId, languageId, langMeta.label],
+  );
+
+  const handleSave = useCallback(() => {
+    if (!activeId) return;
+    setSavedSnapshot((prev) => ({ ...prev, [activeId]: bufferText }));
+    setScratchFiles((prev) => ({
+      ...prev,
+      [activeId]: {
+        ...(prev[activeId] || {}),
+        dirty: false,
+        text: bufferText,
+      },
+    }));
+    showToast?.(`Saved ${activeId.split('/').pop()}`, 'info');
+  }, [activeId, bufferText, showToast]);
+
+  const handleDownload = useCallback(() => {
+    if (!activeId) return;
+    const name = activeId.split('/').pop() || `untitled.${langMeta.ext}`;
+    downloadTextFile(name, bufferText);
+    showToast?.(`Downloaded ${name}`, 'info');
+  }, [activeId, bufferText, langMeta.ext, showToast]);
+
+  const changeEditorLanguage = useCallback(
+    (nextId) => {
+      if (!activeId || !nextId) return;
+      const lang = languageById(nextId);
+      const prev = scratchFiles[activeId];
+      const prevLang = languageById(prev?.languageId || languageIdFromPath(activeId));
+      const text = prev?.text ?? '';
+      // Same buffer — only switch language mode (online editors do not spawn a new file)
+      const stillTemplate =
+        !text.trim() || text.trim() === String(prevLang.template || '').trim();
+      const nextText = stillTemplate ? lang.template || text : text;
+
+      setScratchFiles((p) => ({
+        ...p,
+        [activeId]: {
+          ...(p[activeId] || {}),
+          languageId: nextId,
+          language: lang.label,
+          text: nextText,
+          dirty: true,
+        },
+      }));
+      if (stillTemplate) {
+        setSavedSnapshot((s) => ({ ...s, [activeId]: nextText }));
+      }
+      setNewFileLangId(nextId);
+      showToast?.(`Language → ${lang.label}`, 'info');
+    },
+    [activeId, scratchFiles, showToast],
+  );
 
   const addNewFile = useCallback(() => {
-    const id = `scratch/untitled-${scratchSeq}.py`;
+    // New tab inherits the active editor language (no duplicate top-bar picker)
+    const nextLangId = languageId || newFileLangId || DEFAULT_LANG;
+    const lang = languageById(nextLangId);
+    const id = scratchPath(scratchSeq, nextLangId);
     setScratchSeq((n) => n + 1);
+    setNewFileLangId(nextLangId);
+    const text = lang.template || '';
     setScratchFiles((prev) => ({
       ...prev,
       [id]: {
-        language: 'Python 3.11',
+        languageId: nextLangId,
+        language: lang.label,
         dirty: true,
-        finding: null,
-        text: NEW_FILE_TEMPLATE,
+        text,
       },
     }));
+    setSavedSnapshot((prev) => ({ ...prev, [id]: text }));
     openFile(id);
-  }, [openFile, scratchSeq]);
+  }, [openFile, scratchSeq, newFileLangId, languageId]);
 
   const handleClose = useCallback(
     (id) => {
       closeTab(id);
-      if (scratchFiles[id]) {
-        setScratchFiles((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-      }
+      setScratchFiles((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setSavedSnapshot((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     },
-    [closeTab, scratchFiles],
+    [closeTab],
   );
+
+  const runAnalyzeNow = useCallback(async (payload) => {
+    const gen = ++analyzeGen.current;
+    setLiveWatching(true);
+    try {
+      const data = await onAnalyzeRef.current?.(payload);
+      if (gen !== analyzeGen.current) return;
+      if (data) setSyncedSnippet(payload.code_snippet || '');
+    } finally {
+      if (gen === analyzeGen.current) setLiveWatching(false);
+    }
+  }, []);
+
+  // Continuous ScopeBot sync — debounced Brain analyze as you type
+  useEffect(() => {
+    if (!activeId) return undefined;
+    const snippet = bufferText;
+    if (!String(snippet || '').trim()) {
+      setLiveWatching(false);
+      return undefined;
+    }
+    if (snippet === syncedSnippet) return undefined;
+
+    setLiveWatching(true);
+    const timer = window.setTimeout(() => {
+      if (loadingRef.current) return;
+      const payload = payloadRef.current?.();
+      if (!payload?.code_snippet?.trim()) return;
+      if (payload.code_snippet === syncedSnippet) return;
+      void runAnalyzeNow(payload);
+    }, LIVE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only on editor identity/content
+  }, [bufferText, activeId, languageId, syncedSnippet, runAnalyzeNow]);
+
+  // If debounce skipped due to loading, kick again when idle
+  useEffect(() => {
+    if (loading) return undefined;
+    if (!activeId || !String(bufferRef.current || '').trim()) return undefined;
+    if (bufferRef.current === syncedSnippet) return undefined;
+    const timer = window.setTimeout(() => {
+      const payload = payloadRef.current?.();
+      if (!payload?.code_snippet?.trim()) return;
+      if (payload.code_snippet === syncedSnippet) return;
+      void runAnalyzeNow(payload);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [loading, syncedSnippet, activeId, runAnalyzeNow]);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden select-none">
-      <header className="z-30 flex h-11 shrink-0 items-center justify-between gap-space-md border-b border-outline-variant/20 bg-surface-container-lowest px-space-md">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => {
-              setHitlStep(0);
-              onAnalyze?.(buildPayload());
-            }}
-            className="flex items-center gap-1 rounded bg-surface-container px-2 py-1 font-label-sm text-label-sm text-on-surface transition-colors hover:bg-surface-container-high disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined text-[14px] text-primary">replay</span>
-            <span>Re-run in Debug Mode</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setConsoleTab('stack');
-              showToast?.('Stepped into frame (demo)', 'info');
-            }}
-            className="flex items-center gap-1 rounded bg-surface-container px-2 py-1 font-label-sm text-label-sm text-on-surface transition-colors hover:bg-surface-container-high"
-          >
-            <span className="material-symbols-outlined text-[14px]">subdirectory_arrow_right</span>
-            <span>Step Into (F11)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (finding?.line) {
-                showToast?.(`AST focus → ${activeId}:${finding.line}`, 'info');
-              } else {
-                showToast?.('No AST finding on this file', 'info');
-              }
-              setConsoleTab('logs');
-            }}
-            className="flex items-center gap-1 rounded bg-surface-container px-2 py-1 font-label-sm text-label-sm text-on-surface transition-colors hover:bg-surface-container-high"
-          >
-            <span className="material-symbols-outlined text-[14px]">account_tree</span>
-            <span>Inspect AST Node</span>
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => {
-              setConsoleTab('output');
-              setHitlStep(1);
-              (onSandbox || onAnalyze)?.(buildPayload());
-            }}
-            className="flex items-center gap-1 rounded bg-secondary-container/40 px-2 py-1 font-label-sm text-label-sm font-semibold text-secondary transition-colors hover:bg-secondary-container/55 disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined text-[14px]">deployed_code</span>
-            <span>Run Sandbox Container</span>
-          </button>
-        </div>
-        {(statusNote || statusError || loading) && (
-          <span
-            className={`max-w-xs truncate font-code-compact text-code-compact ${
-              statusError ? 'text-error' : 'text-tertiary'
-            }`}
-          >
-            {loading ? 'Investigating…' : statusError || statusNote}
-          </span>
-        )}
-      </header>
-
       <div className="flex min-h-0 flex-1 overflow-hidden bg-surface-container-lowest">
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <FileTabBar
             tabs={tabItems}
             activeId={activeId}
@@ -255,38 +573,56 @@ export function ScopeBotWorkspace({
             onSelect={setActiveId}
             onClose={handleClose}
             onAdd={addNewFile}
+            onRun={handleRun}
+            runDisabled={loading || !activeId}
+            runLabel="Run"
+            trailing={
+              activeId ? (
+                <>
+                  <LanguageSelect
+                    value={languageId}
+                    onChange={changeEditorLanguage}
+                    options={AUDIT_LANGUAGES}
+                    aria-label="Code language"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={!dirty}
+                    className="flex items-center gap-1 rounded bg-primary-container px-2 py-1 font-label-sm text-[11px] font-semibold text-on-primary-container disabled:cursor-not-allowed disabled:opacity-40"
+                    title="Save (Ctrl+S)"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">save</span>
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="flex items-center gap-1 rounded bg-surface-container-high px-2 py-1 font-label-sm text-[11px] text-on-surface"
+                    title="Download file"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">download</span>
+                    Download
+                  </button>
+                </>
+              ) : null
+            }
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {activeId ? (
+            {activeId && file ? (
               <CodeEditor
                 path={activeId}
-                language={file.language}
+                language={langMeta.label}
+                languageId={languageId}
                 editable
                 value={bufferText}
-                onChange={(text) => {
-                  if (isScratch) {
-                    setScratchFiles((prev) => ({
-                      ...prev,
-                      [activeId]: { ...prev[activeId], text, dirty: true },
-                    }));
-                  } else {
-                    setBufferEdits((prev) => ({ ...prev, [activeId]: text }));
-                  }
-                }}
+                dirty={dirty}
+                onChange={setActiveText}
+                onSave={handleSave}
                 findingLine={finding?.line}
                 findingLabel={finding?.title}
-                metaRight={
-                  <>
-                    <span className="font-code-compact text-code-compact text-outline">
-                      UTF-8 · LF · Spaces: 4
-                    </span>
-                    {file.dirty || isScratch || bufferEdits[activeId] != null ? (
-                      <span className="text-[10px] text-tertiary">● Modified</span>
-                    ) : null}
-                    <span className="font-label-sm text-label-sm text-outline">{file.language}</span>
-                  </>
-                }
+                issueLines={issueLines}
               />
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface">
@@ -304,281 +640,235 @@ export function ScopeBotWorkspace({
               </div>
             )}
 
-            <section className="flex h-40 shrink-0 flex-col border-t border-outline-variant/20 bg-surface-container-lowest">
-              <div className="flex h-8 shrink-0 items-center justify-between bg-surface-container-low px-space-sm">
-                <div className="flex h-full items-center gap-0.5">
+            <section className="flex h-52 shrink-0 flex-col border-t border-outline-variant/20 bg-[#010409] sm:h-56">
+              <div className="flex h-9 shrink-0 items-center justify-between border-b border-outline-variant/15 bg-surface-container-low px-space-sm">
+                <div className="flex h-full min-w-0 items-center gap-0.5 overflow-x-auto">
                   {[
-                    { id: 'logs', label: 'Terminal / Runtime Logs', icon: 'terminal' },
-                    {
-                      id: 'stack',
-                      label: `Stack Trace (${(activeResult?.stack_trace || finding) ? 1 : 0})`,
-                      icon: null,
-                    },
-                    { id: 'output', label: 'Execution Output', icon: null, hideSm: true },
+                    { id: 'terminal', label: 'Terminal' },
+                    { id: 'output', label: 'Execution Output' },
+                    { id: 'debug', label: 'Debug Logs' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
                       onClick={() => setConsoleTab(tab.id)}
-                      className={`flex h-full items-center gap-1.5 px-space-md font-label-sm text-label-sm ${
-                        tab.hideSm ? 'hidden sm:flex' : ''
-                      } ${
+                      className={`relative flex h-full shrink-0 items-center px-space-md font-label-sm text-label-sm transition-colors ${
                         consoleTab === tab.id
-                          ? 'bg-surface-container-lowest font-medium text-primary'
+                          ? 'rounded-t-md border border-b-0 border-outline-variant/25 bg-[#010409] font-medium text-on-surface'
                           : 'text-on-surface-variant hover:text-on-surface'
                       }`}
                     >
-                      {tab.icon ? (
-                        <span className="material-symbols-outlined text-[13px]">{tab.icon}</span>
-                      ) : null}
                       {tab.label}
+                      {consoleTab === tab.id ? (
+                        <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary" />
+                      ) : null}
                     </button>
                   ))}
                 </div>
-                <span
-                  className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-code-compact text-code-compact ${
-                    exitCode
-                      ? 'bg-error-container/30 text-error'
-                      : 'bg-tertiary-container/30 text-tertiary'
-                  }`}
-                >
-                  Exit code {exitCode}
-                </span>
+                <div className="flex shrink-0 items-center gap-1 pl-2">
+                  <button
+                    type="button"
+                    onClick={clearConsole}
+                    title="Clear terminal"
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 font-label-sm text-label-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">delete</span>
+                    Clear
+                  </button>
+                  <span
+                    className="material-symbols-outlined px-1 text-[16px] text-outline"
+                    title={
+                      loading
+                        ? 'Running…'
+                        : exitCode != null
+                          ? `Exit ${exitCode}${execStatus ? ` · ${execStatus}` : ''}`
+                          : 'Not run'
+                    }
+                    aria-hidden
+                  >
+                    unfold_more
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-space-sm font-code-compact text-code-compact text-on-surface">
-                {consoleTab === 'logs' ? (
+              <div
+                role="log"
+                aria-label="Terminal output"
+                aria-readonly="true"
+                tabIndex={0}
+                className="eyra-terminal-scroll eyra-terminal-readonly min-h-0 flex-1 cursor-default overflow-y-auto overflow-x-hidden p-space-sm font-code-compact text-[12px] leading-relaxed text-on-surface outline-none select-text"
+                onKeyDown={(e) => {
+                  const copy =
+                    (e.ctrlKey || e.metaKey) &&
+                    (e.key === 'c' || e.key === 'C' || e.key === 'a' || e.key === 'A');
+                  if (!copy && e.key.length === 1) e.preventDefault();
+                }}
+              >
+                {consoleTab === 'terminal' ? (
                   <>
-                    <div className="text-outline">
-                      $ /usr/local/bin/python3 /workspace/backend-api/{activeId || 'test.py'}
-                    </div>
-                    {execResult?.stderr || activeResult?.terminal_output || finding ? (
-                      <div className="flex items-center gap-1 pt-0.5 font-semibold text-error">
-                        <span className="material-symbols-outlined text-[14px]">error</span>
-                        {execResult?.error_type ||
-                          activeResult?.error_type ||
-                          finding?.title ||
-                          'Runtime fault'}
+                    {(execResult || loading) && (
+                      <div className="whitespace-pre-wrap">
+                        <span className="text-primary">$ </span>
+                        <span className="text-primary">{runCommandLine.split(' ')[0]}</span>
+                        {runCommandLine.includes(' ') ? (
+                          <span className="text-on-surface">
+                            {' '}
+                            {runCommandLine.split(' ').slice(1).join(' ')}
+                          </span>
+                        ) : null}
                       </div>
-                    ) : (
-                      <div className="text-tertiary">Process finished with exit code 0.</div>
                     )}
+                    {loading && !execResult ? (
+                      <div className="text-outline">…</div>
+                    ) : null}
                     {execResult?.stdout ? (
-                      <div className="whitespace-pre-wrap text-on-surface-variant">{execResult.stdout}</div>
+                      <div className="whitespace-pre-wrap text-on-surface">{execResult.stdout}</div>
+                    ) : null}
+                    {execResult?.stderr ? (
+                      <div className="whitespace-pre-wrap text-error">{execResult.stderr}</div>
+                    ) : null}
+                    {!loading && !execResult ? (
+                      <>
+                        <div className="text-outline">
+                          # Read-only terminal — press Run to execute the open file
+                        </div>
+                        <div>
+                          <span className="text-primary">$ </span>
+                          <span className="inline-block h-3 w-1.5 animate-pulse bg-primary align-middle" />
+                        </div>
+                      </>
+                    ) : null}
+                    {execResult && !loading ? (
+                      <div>
+                        <span className="text-primary">$ </span>
+                        <span className="inline-block h-3 w-1.5 animate-pulse bg-primary/70 align-middle" />
+                      </div>
                     ) : null}
                   </>
                 ) : null}
-                {consoleTab === 'stack' ? (
-                  (activeResult?.stack_trace || finding) ? (
-                    <>
-                      {activeResult?.stack_trace ? (
-                        <div className="whitespace-pre-wrap text-on-surface-variant">
-                          {activeResult.stack_trace}
-                        </div>
-                      ) : (
-                        <>
-                          <div className="text-on-surface-variant">
-                            Traceback (most recent call last):
-                          </div>
-                          <div className="pl-4 text-on-surface-variant">
-                            File{' '}
-                            <span className="text-primary">
-                              &quot;/workspace/backend-api/{activeId}&quot;
-                            </span>
-                            , line {finding.line}, in{' '}
-                            <span className="text-secondary">&lt;module&gt;</span>
-                          </div>
-                          <div className="font-semibold text-error">{finding.title}</div>
-                          <div className="text-on-surface-variant">{finding.summary}</div>
-                        </>
-                      )}
-                    </>
+                {consoleTab === 'output' ? (
+                  execResult ? (
+                    <div className="whitespace-pre-wrap text-on-surface">
+                      {execResult.stdout?.trim()
+                        ? execResult.stdout
+                        : execResult.ok
+                          ? '(no stdout)'
+                          : '(no stdout — see Debug Logs / Terminal for errors)'}
+                    </div>
                   ) : (
-                    <div className="text-tertiary">No stack trace for this file.</div>
+                    <div className="text-outline">(no execution output yet)</div>
                   )
                 ) : null}
-                {consoleTab === 'output' ? (
-                  execResult || finding || activeResult ? (
-                    <>
-                      <div className="text-outline">{execResult?.ok ? 'stdout' : 'stderr'}</div>
+                {consoleTab === 'debug' ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-label-sm text-[11px] font-semibold tracking-wide ${debugTone.badge}`}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">{debugTone.icon}</span>
+                        {debugTone.label}
+                      </span>
+                      <span className={`font-code-compact text-[11px] ${debugTone.line}`}>
+                        {debugTone.detail}
+                      </span>
+                    </div>
+                    {execResult ? (
+                      <div className="flex flex-col gap-1 whitespace-pre-wrap font-code-compact text-[12px]">
+                        <div className={debugTone.line}>
+                          status=
+                          <span className="font-semibold">{execResult.status || '—'}</span>
+                          {' · '}exit=
+                          <span className="font-semibold">{execResult.exit_code}</span>
+                          {' · '}phase={execResult.phase || '—'}
+                          {execResult.duration_ms != null
+                            ? ` · ${execResult.duration_ms}ms`
+                            : ''}
+                        </div>
+                        <div className="text-on-surface-variant">
+                          runtime={execResult.runtime || '—'}
+                          {execResult.runtime_version
+                            ? ` · ${execResult.runtime_version}`
+                            : ''}
+                          {execResult.error_type ? (
+                            <>
+                              {' · '}error=
+                              <span className={debugTone.line}>{execResult.error_type}</span>
+                            </>
+                          ) : null}
+                        </div>
+                        {(execResult.stack_trace || execResult.stderr) && (
+                          <div
+                            className={`mt-1 whitespace-pre-wrap ${
+                              debugTone.key === 'ok' ? 'text-tertiary' : debugTone.line
+                            }`}
+                          >
+                            {execResult.stack_trace || execResult.stderr}
+                          </div>
+                        )}
+                        {execResult.diagnostics &&
+                        execResult.diagnostics !== execResult.stderr ? (
+                          <div className="mt-1 text-on-surface-variant">
+                            {execResult.diagnostics}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : activeResult?.stack_trace && brainSynced ? (
                       <div className="whitespace-pre-wrap text-error">
-                        {execResult?.stderr ||
-                          activeResult?.terminal_output ||
-                          finding?.title ||
-                          ''}
+                        {activeResult.stack_trace}
                       </div>
-                      <div className="whitespace-pre-wrap text-on-surface-variant">
-                        {execResult?.stdout ||
-                          activeResult?.verification?.detail ||
-                          finding?.impact ||
-                          ''}
+                    ) : !loading ? (
+                      <div className="text-outline">
+                        # No debug logs yet — press Run to capture status
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-outline">stdout</div>
-                      <div className="text-tertiary">(no output)</div>
-                    </>
-                  )
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </section>
           </div>
         </div>
 
-        <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-outline-variant/25 bg-surface-container-low 2xl:w-96">
-          <div className="flex items-center justify-between bg-surface-container-lowest p-space-sm">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.35)]">
-                <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-headline-sm text-headline-sm leading-tight text-on-surface">
-                  ScopeBot Online
-                </span>
-                <span className="font-label-sm text-[10px] text-tertiary">{modelLabel}</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              aria-label="ScopeBot settings"
-              onClick={() => showToast?.('ScopeBot uses Brain /api/analyze', 'info')}
-              className="rounded p-1 text-outline hover:bg-surface-container hover:text-on-surface"
-            >
-              <span className="material-symbols-outlined text-[16px]">settings</span>
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-space-md p-space-md">
-            {finding ? (
-              <>
-                <div className="flex flex-col gap-2 rounded bg-surface-container p-space-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm uppercase text-outline">
-                      Root-Cause Analysis
-                    </span>
-                    <span className="rounded bg-tertiary-container/20 px-1.5 py-0.5 font-label-sm text-[10px] text-tertiary">
-                      {certaintyLabel}
-                    </span>
-                  </div>
-                  <p className="font-body-md text-body-md leading-snug text-on-surface">
-                    {finding.summary}
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">
-                    Evidence Engine
-                  </span>
-                  <div className="flex flex-col gap-1 rounded bg-surface-container-lowest p-2 font-code-compact text-code-compact">
-                    <div className="flex items-center gap-1 text-[11px] text-tertiary">
-                      <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                      <span>[CONFIRMED FACT]</span>
-                    </div>
-                    <span className="text-[11px] text-on-surface-variant">
-                      Issue at <span className="text-primary">{activeId}:{finding.line}</span> ·{' '}
-                      {finding.cwe}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1 rounded bg-surface-container p-2 font-code-compact text-code-compact">
-                    <div className="flex items-center gap-1 text-[11px] text-secondary">
-                      <span className="material-symbols-outlined text-[13px]">science</span>
-                      <span>[IMPACT]</span>
-                    </div>
-                    <span className="text-[11px] text-on-surface-variant">{finding.impact}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm uppercase text-outline">
-                      Proposed Patch Diff
-                    </span>
-                    <span className="rounded bg-surface-container-high px-1.5 py-0.5 font-label-sm text-[10px] text-on-surface-variant">
-                      unified git diff
-                    </span>
-                  </div>
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-surface-container-lowest p-2 font-code-compact text-code-compact text-on-surface-variant">
-                    {finding.patch}
-                  </pre>
-                </div>
-              </>
-            ) : (
-              <div className="rounded bg-surface-container p-space-md text-center">
-                <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
-                <p className="mt-2 font-body-sm text-body-sm text-on-surface-variant">
-                  No runtime exception on this file. Open <strong className="text-primary">test.py</strong>{' '}
-                  to inspect the ZeroDivisionError session.
-                </p>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2 border-t border-outline-variant/20 pt-space-sm">
-              <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">
-                Human-in-the-Loop Governance
-              </span>
-              <div className="flex items-center gap-1">
-                {HITL_STEPS.map((step, i) => (
-                  <div key={step.id} className="flex min-w-0 flex-1 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setHitlStep(i)}
-                      className={`flex w-full flex-col items-center gap-0.5 rounded px-1 py-1.5 ${
-                        i <= hitlStep
-                          ? 'bg-primary-container/20 text-primary'
-                          : 'bg-surface-container text-outline'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[14px]">
-                        {i <= hitlStep ? 'radio_button_checked' : 'radio_button_unchecked'}
-                      </span>
-                      <span className="truncate font-label-sm text-[10px] font-medium">{step.label}</span>
-                    </button>
-                    {i < HITL_STEPS.length - 1 ? (
-                      <span className="material-symbols-outlined shrink-0 text-[12px] text-outline-variant">
-                        chevron_right
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant">
-                Status: {HITL_STEPS[hitlStep]?.label || 'Suggested'}
-                {activeResult?.verification?.status
-                  ? ` · verify ${activeResult.verification.status}`
-                  : ''}{' '}
-                — human approval required before apply.
-              </p>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => {
-                  setHitlStep(1);
-                  setConsoleTab('output');
-                  (onSandbox || onAnalyze)?.(buildPayload());
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded bg-surface-container-high px-space-sm py-2 font-label-sm text-label-sm font-semibold text-on-surface hover:bg-surface-bright disabled:opacity-40"
-              >
-                <span className="material-symbols-outlined text-[15px] text-primary">play_circle</span>
-                Run Sandbox Verification
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setHitlStep(3);
-                  await onCopyPatch?.();
-                  showToast?.(
-                    'Suggested patch copied — not applied to disk (review/copy only)',
-                    'info',
-                  );
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded bg-primary-container px-space-sm py-2 font-label-sm text-label-sm font-semibold text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.3)] hover:brightness-110"
-              >
-                <span className="material-symbols-outlined text-[15px]">done_all</span>
-                Approve &amp; Apply to VS Code
-              </button>
-            </div>
-          </div>
-        </aside>
+        <EyraAssistantChat
+          bufferText={bufferText}
+          language={apiLanguageFromId(languageId)}
+          fileName={activeId?.split('/').pop() || 'snippet.py'}
+          loading={loading}
+          liveWatching={liveWatching}
+          modelLabel={modelLabel}
+          runtimePulse={runtimePulse}
+          onAnalyze={onAnalyze}
+          onSandbox={onSandbox}
+          onCopyPatch={onCopyPatch}
+          onApplyFix={(code) => {
+            const next = String(code || '');
+            if (!next.trim()) {
+              showToast?.('No corrected code to apply', 'error');
+              return;
+            }
+            setActiveText(next);
+            // Break stale Brain sync so red SyntaxError / fault line clears;
+            // live audit re-evaluates the new buffer and only flags real issues.
+            setSyncedSnippet('');
+            if (activeResult) {
+              adoptResult({
+                ...activeResult,
+                code_snippet: next,
+                error_type: 'None',
+                error_summary: '',
+                stack_trace: '',
+                root_cause: 'Suggested fix applied in the editor — re-run to verify.',
+                explanation: 'Suggested fix applied in the editor — re-run to verify.',
+                status: 'verified',
+                suggested_correction: {
+                  ...(activeResult.suggested_correction || {}),
+                  corrected_code: next,
+                  apply_mode: 'applied',
+                },
+              });
+            }
+            showToast?.('Suggested fix applied to the open file', 'info');
+          }}
+          buildPayload={buildPayload}
+        />
       </div>
     </div>
   );

@@ -16,7 +16,11 @@ from app.schemas import (
 )
 
 
-async def run_investigation(req: AnalyzeRequest) -> AnalyzeResponse:
+async def run_investigation(
+    req: AnalyzeRequest,
+    *,
+    user_id: str | None = None,
+) -> AnalyzeResponse:
     settings = get_settings()
     config = get_config()
 
@@ -96,7 +100,9 @@ async def run_investigation(req: AnalyzeRequest) -> AnalyzeResponse:
         status = SessionStatus.NEEDS_REVIEW
 
     session_id = new_session_id()
-    related = find_related(draft.error_type, exclude_id=None, limit=5)
+    related = find_related(
+        draft.error_type, exclude_id=None, limit=5, user_id=user_id
+    )
 
     result = AnalyzeResponse(
         session_id=session_id,
@@ -122,4 +128,6 @@ async def run_investigation(req: AnalyzeRequest) -> AnalyzeResponse:
         confidence=draft.confidence,
     )
 
-    return save_session(result, store_code=config.privacy_store_code)
+    return save_session(
+        result, store_code=config.privacy_store_code, user_id=user_id
+    )

@@ -1,4 +1,31 @@
-/** VS Code–style file/folder icons via Material Symbols + accent colors */
+/** VS Code–style file/folder icons via Material Symbols + language brand colors */
+
+import { languageIconMeta, languageIdFromPath } from '../../lib/auditLanguages.js';
+
+const LANG_EXTS = new Set([
+  'py',
+  'pyi',
+  'js',
+  'mjs',
+  'cjs',
+  'jsx',
+  'ts',
+  'tsx',
+  'java',
+  'c',
+  'h',
+  'cpp',
+  'cc',
+  'cxx',
+  'hpp',
+  'hh',
+  'go',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'sql',
+]);
 
 export function extOf(pathOrName) {
   const base = String(pathOrName).split('/').pop() || '';
@@ -6,30 +33,34 @@ export function extOf(pathOrName) {
   return i >= 0 ? base.slice(i + 1).toLowerCase() : '';
 }
 
+/**
+ * @param {string} extOrPath
+ * @param {string|null} [severity]
+ * @returns {{ icon: string, color: string, label: string, brandColor?: string, glyph?: string }}
+ */
 export function fileIcon(extOrPath, severity = null) {
-  const ext = extOrPath.includes('.') || extOrPath.includes('/') ? extOf(extOrPath) : extOrPath;
   const hot = severity === 'critical' || severity === 'high';
+  const raw = String(extOrPath || '');
+  const base = raw.split('/').pop() || raw;
+  const ext = raw.includes('/') || raw.includes('.') ? extOf(raw) : raw.toLowerCase();
 
-  if (ext === 'py') {
-    return { icon: 'code', color: hot ? 'text-error' : 'text-[#3776AB]', label: 'Python' };
+  if (LANG_EXTS.has(ext)) {
+    const id = languageIdFromPath(raw.includes('.') || raw.includes('/') ? raw : `file.${ext}`);
+    const meta = languageIconMeta(id);
+    return {
+      icon: meta.icon,
+      color: hot ? 'text-error' : '',
+      label: meta.label,
+      brandColor: meta.color,
+      glyph: meta.glyph,
+    };
   }
-  if (ext === 'html' || ext === 'htm') {
-    return { icon: 'html', color: hot ? 'text-error' : 'text-[#e44d26]', label: 'HTML' };
-  }
+
   if (ext === 'json') {
     return { icon: 'data_object', color: hot ? 'text-error' : 'text-[#cbcb41]', label: 'JSON' };
   }
-  if (ext === 'js' || ext === 'jsx' || ext === 'mjs') {
-    return { icon: 'javascript', color: 'text-[#f7df1e]', label: 'JavaScript' };
-  }
-  if (ext === 'ts' || ext === 'tsx') {
-    return { icon: 'code_blocks', color: 'text-[#3178c6]', label: 'TypeScript' };
-  }
-  if (ext === 'css' || ext === 'scss') {
-    return { icon: 'css', color: 'text-[#264de4]', label: 'CSS' };
-  }
-  if (ext === 'md') {
-    return { icon: 'description', color: 'text-secondary', label: 'Markdown' };
+  if (ext === 'md' || ext === 'markdown') {
+    return { icon: 'description', color: hot ? 'text-error' : 'text-secondary', label: 'Markdown' };
   }
   if (ext === 'txt' || ext === 'log') {
     return { icon: 'article', color: 'text-outline', label: 'Text' };
@@ -41,7 +72,17 @@ export function fileIcon(extOrPath, severity = null) {
 }
 
 export function tagClass(tone) {
-  if (tone === 'error') return 'bg-error-container/40 text-error';
-  if (tone === 'secondary') return 'bg-secondary-container/30 text-secondary';
+  if (tone === 'critical' || tone === 'error') {
+    return 'bg-error text-white font-bold min-w-[1.1rem] text-center';
+  }
+  if (tone === 'high') {
+    return 'bg-[#e67e22] text-white font-bold min-w-[1.1rem] text-center';
+  }
+  if (tone === 'medium' || tone === 'secondary') {
+    return 'bg-[#d4a017] text-[#1a1400] font-bold min-w-[1.1rem] text-center';
+  }
+  if (tone === 'low') {
+    return 'bg-primary-container/80 text-on-primary-container font-bold min-w-[1.1rem] text-center';
+  }
   return 'bg-surface-container-high text-outline';
 }

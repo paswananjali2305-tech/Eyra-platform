@@ -32,6 +32,8 @@ copy .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+`requirements.txt` includes **ruff** and **radon** so CodeAudit Python analysis tools are available after one `pip install`. For Eyraaaa alone you can also run `pip install -r ../Eyraaaa/analyzer-python/requirements.txt` against the same Python that is on your PATH.
+
 Optional: set `GROQ_API_KEY` in `.env`. Without it, EYRA uses an **explicitly labeled** local heuristic (`reasoning_source: local_heuristic`). It never pretends Groq was called.
 
 ### Frontend

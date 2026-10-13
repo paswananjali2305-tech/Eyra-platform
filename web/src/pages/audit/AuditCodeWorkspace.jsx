@@ -2,178 +2,575 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CodeEditor } from '../../components/ide/CodeEditor.jsx';
 import { FileExplorer } from '../../components/ide/FileExplorer.jsx';
 import { FileTabBar } from '../../components/ide/FileTabBar.jsx';
+import { PanelResizeHandle } from '../../components/ide/PanelResizeHandle.jsx';
 import { useEyra } from '../../context/EyraContext.jsx';
-import { mapTrendsFromScans, resolveAuditWorkspace } from '../../lib/auditScanMap.js';
-import { useOpenTabs } from '../../hooks/useOpenTabs.js';
+import {
+  AUDIT_LANGUAGES,
+  languageById,
+  languageIdFromPath,
+} from '../../lib/auditLanguages.js';
+import { LanguageLogo, LanguageSelect } from '../../components/ide/LanguageLogo.jsx';
+import {
+  annotateTreeSeverity,
+  buildRepoTreeFromPaths,
+  resolveAuditWorkspace,
+} from '../../lib/auditScanMap.js';
+import { auditFileText } from '../../lib/liveFileAudit.js';
+import {
+  applyCorrectedAtFinding,
+  buildFixBundle,
+  findingKey,
+  isFindingStillPresent,
+} from '../../lib/patchView.js';
+import { dedupeTabIds, useOpenTabs } from '../../hooks/useOpenTabs.js';
 
-const NEW_FILE_TEMPLATE = `# Scratch file for audit notes / repro
+const PANEL_LAYOUT_KEY = 'eyra.audit.panelWidths';
+const EXPLORER_MIN = 160;
+const EXPLORER_MAX = 480;
+const CHECK_MIN = 280;
+const CHECK_MAX = 720;
+const EDITOR_MIN = 280;
+const DEFAULT_NEW_LANG = 'JavaScript';
 
-def main():
-    pass
-`;
+function loadPanelWidths() {
+  try {
+    const raw = sessionStorage.getItem(PANEL_LAYOUT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.explorer === 'number' &&
+      typeof parsed?.check === 'number'
+    ) {
+      return { explorer: parsed.explorer, check: parsed.check };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
 
-const FALLBACK_PARTIALS = [
-  {
-    id: 'pf-mfa',
-    file: 'auth/jwt_handler.py',
-    line: 22,
-    type: 'TODO',
-    risk: 'High',
-    effort: '4h',
-    description: 'Multi-Factor Authentication step stubbed before token issue',
-  },
-  {
-    id: 'pf-refund',
-    file: 'routes/payment.py',
-    line: 48,
-    type: 'NotImplemented',
-    risk: 'High',
-    effort: '6h',
-    description: 'Refund webhook handler returns 501',
-  },
-  {
-    id: 'pf-rate',
-    file: 'auth/oauth_provider.py',
-    line: 31,
-    type: 'Stub',
-    risk: 'Medium',
-    effort: '3h',
-    description: 'OAuth rate-limit middleware placeholder',
-  },
-  {
-    id: 'pf-notify',
-    file: 'services/notification.py',
-    line: 12,
-    type: 'TODO',
-    risk: 'Medium',
-    effort: '2h',
-    description: 'Push notification provider not wired',
-  },
-];
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
 
-const FALLBACK_TRENDS = [
-  { label: 'Today', critical: 2, high: 4, medium: 5, score: 72 },
-  { label: 'Yesterday', critical: 3, high: 5, medium: 6, score: 64 },
-  { label: '3 days ago', critical: 4, high: 6, medium: 7, score: 58 },
-  { label: 'Last week', critical: 5, high: 8, medium: 9, score: 51 },
-];
+const EDITS_KEY = 'eyra.auditFileEdits';
+const RESOLVED_KEY = 'eyra.auditResolvedFindings';
+const TABS_KEY = 'eyra.auditOpenTabs';
+
+function scanStorageId(scanId) {
+  return scanId || 'demo';
+}
+
+function loadPersistedEdits(scanId) {
+  try {
+    const raw = sessionStorage.getItem(`${EDITS_KEY}:${scanStorageId(scanId)}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistEdits(scanId, map) {
+  try {
+    sessionStorage.setItem(`${EDITS_KEY}:${scanStorageId(scanId)}`, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadResolvedKeys(scanId) {
+  try {
+    const raw = sessionStorage.getItem(`${RESOLVED_KEY}:${scanStorageId(scanId)}`);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistResolvedKeys(scanId, set) {
+  try {
+    sessionStorage.setItem(
+      `${RESOLVED_KEY}:${scanStorageId(scanId)}`,
+      JSON.stringify([...set]),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadPersistedTabs(scanId) {
+  try {
+    const raw = sessionStorage.getItem(`${TABS_KEY}:${scanStorageId(scanId)}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const tabs = dedupeTabIds(parsed?.tabs || []);
+    if (!tabs.length) return null;
+    const activeId =
+      parsed?.activeId && tabs.includes(parsed.activeId) ? parsed.activeId : tabs[0];
+    return { tabs, activeId };
+  } catch {
+    return null;
+  }
+}
+
+function persistTabs(scanId, tabs, activeId) {
+  try {
+    const next = dedupeTabIds(tabs);
+    sessionStorage.setItem(
+      `${TABS_KEY}:${scanStorageId(scanId)}`,
+      JSON.stringify({
+        tabs: next,
+        activeId: activeId && next.includes(activeId) ? activeId : next[0] || null,
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Unique file paths from findings first, then file map — never duplicate tabs. */
+function buildDefaultTabs(findings, fileContents, max = 3) {
+  const flagged = dedupeTabIds((findings || []).map((f) => f.path).filter(Boolean));
+  if (flagged.length) return flagged.slice(0, max);
+  return dedupeTabIds(Object.keys(fileContents || {})).slice(0, max);
+}
+
+function filterTabsToExisting(tabs, fileContents, scratchFiles = {}) {
+  return dedupeTabIds(tabs).filter(
+    (id) => Boolean(fileContents?.[id]) || Boolean(scratchFiles?.[id]) || id.startsWith('scratch/'),
+  );
+}
+
+function findingsForFile(file, path) {
+  if (!file) return [];
+  if (Array.isArray(file.allFindings) && file.allFindings.length) {
+    return file.allFindings.map((iss) => ({ ...iss, path: iss.path || path }));
+  }
+  if (file.finding) return [{ ...file.finding, path: file.finding.path || path }];
+  return [];
+}
+
+function mergeFindingLists(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const f of list || []) {
+      if (!f) continue;
+      map.set(findingKey(f), f);
+    }
+  }
+  return [...map.values()].sort((a, b) => (a.line || 0) - (b.line || 0));
+}
+
+/** Compare finding copy so we don't render Finding + Impact twice. */
+function normalizeFindingText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[`"'*_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 /**
- * Code Audit — VS Code explorer + clickable section tabs + editor + AST proof.
+ * Keep scan/demo findings visible until the user applies a fix (resolvedKeys)
+ * or edits the file — then re-check with isFindingStillPresent.
+ * Avoids false "Clean" when the heuristic mis-reads an untouched finding.
+ */
+function keepOpenFinding(iss, text, resolvedKeys, fileEdited) {
+  const key = findingKey(iss);
+  if (resolvedKeys.has(key)) return false;
+  if (!fileEdited) return true;
+  return isFindingStillPresent(iss, text);
+}
+
+function fileBody(file) {
+  if (!file) return '';
+  if (file.text != null) return String(file.text);
+  return (file.lines || [])
+    .map((l) => (typeof l === 'string' ? l : l?.text ?? ''))
+    .join('\n');
+}
+
+/**
+ * Code Audit — Issues list + VS Code explorer / editor + AST proof.
  */
 export function AuditCodeWorkspace() {
-  const { activeScan, scanList, refreshScan, activeScanId, refreshScanList, showToast } = useEyra();
+  const {
+    activeScan,
+    refreshScan,
+    activeScanId,
+    refreshScanList,
+    showToast,
+    clearActiveScan,
+    setAuditView,
+  } = useEyra();
+  const [hydrateTimedOut, setHydrateTimedOut] = useState(false);
 
   useEffect(() => {
     refreshScanList();
     if (activeScanId) refreshScan(activeScanId);
   }, [activeScanId, refreshScan, refreshScanList]);
 
-  const workspace = useMemo(() => resolveAuditWorkspace(activeScan), [activeScan]);
-  const {
-    usingLive,
-    fileContents,
-    repoTree,
-    defaultFolders,
-    projectLabel,
-    findings,
-    partials: livePartials,
-    dependencies: liveDeps,
-  } = workspace;
+  /**
+   * Wait for stored scan id to hydrate — empty workspace until then (no mockRepo).
+   */
+  const scanHydrating = Boolean(activeScanId) && activeScan?.id !== activeScanId;
 
-  const partials = livePartials || FALLBACK_PARTIALS;
-  const deps = useMemo(() => {
-    if (liveDeps) return liveDeps;
-    return findings.filter((f) => String(f.cwe || f.title || '').includes('CVE'));
-  }, [liveDeps, findings]);
+  useEffect(() => {
+    if (!scanHydrating) {
+      setHydrateTimedOut(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setHydrateTimedOut(true), 14_000);
+    return () => window.clearTimeout(timer);
+  }, [scanHydrating, activeScanId]);
 
-  const liveTrends = useMemo(() => mapTrendsFromScans(scanList), [scanList]);
-  const trendPoints = liveTrends || FALLBACK_TRENDS;
+  const workspace = useMemo(() => {
+    if (scanHydrating) return null;
+    return resolveAuditWorkspace(activeScan);
+  }, [activeScan, scanHydrating]);
 
-  const tabs = useMemo(
-    () => [
-      { id: 'overview', label: 'Overview' },
-      { id: 'issues', label: `Issues (${findings.length})` },
-      { id: 'heatmap', label: 'File Heatmap & Code' },
-      { id: 'partials', label: `Partial Features (${partials.length})` },
-      { id: 'deps', label: `Dependencies & CVEs (${deps.length})` },
-      { id: 'trends', label: 'Trend History' },
-    ],
-    [findings.length, partials.length, deps.length],
-  );
+  const usingLive = workspace?.usingLive ?? false;
+  const fileContents = workspace?.fileContents || {};
+  const repoTree = workspace?.repoTree || null;
+  const defaultFolders = workspace?.defaultFolders || [];
+  const projectLabel = workspace?.projectLabel || '…';
+  const findings = workspace?.findings || [];
+  /** Stable session key: live scan id when present, else empty shell. */
+  const workspaceKey = activeScanId || 'empty';
 
   const [section, setSection] = useState('heatmap');
-  const [openFolders, setOpenFolders] = useState(() => new Set(defaultFolders));
-  const initialTabs = useMemo(() => {
-    const flagged = findings.slice(0, 3).map((f) => f.path).filter(Boolean);
-    if (flagged.length) return flagged;
-    return Object.keys(fileContents).slice(0, 3);
-  }, [findings, fileContents]);
+  const [openFolders, setOpenFolders] = useState(() => new Set());
+  const defaultTabs = useMemo(
+    () => buildDefaultTabs(findings, fileContents, 3),
+    [findings, fileContents],
+  );
 
-  const { openTabs, activeId, setActiveId, openFile, closeTab } = useOpenTabs(initialTabs);
+  const { openTabs, activeId, setActiveId, openFile, closeTab, replaceTabs } = useOpenTabs([]);
   const [copied, setCopied] = useState(false);
   const [scratchFiles, setScratchFiles] = useState({});
   const [scratchSeq, setScratchSeq] = useState(1);
+  /** Per-path language id override (editor dropdown). */
+  const [langByPath, setLangByPath] = useState({});
+  const [newFileLangId, setNewFileLangId] = useState(DEFAULT_NEW_LANG);
+  /** Working buffer + last-saved snapshot for edit/save. */
+  const [overrides, setOverrides] = useState({});
+  const [savedSnapshot, setSavedSnapshot] = useState({});
   /** Explicit finding chosen from Issues list (may differ from primary file finding). */
   const [selectedFinding, setSelectedFinding] = useState(null);
+  /** Findings cleared after Apply + re-check (or confirmed gone in current text). */
+  const [resolvedKeys, setResolvedKeys] = useState(() => new Set());
+  /** Resizable explorer / Current file check panel widths (px). */
+  const [panelWidths, setPanelWidths] = useState(() => {
+    const saved = loadPanelWidths();
+    return {
+      explorer: saved?.explorer ?? 240,
+      check: saved?.check ?? 360,
+    };
+  });
 
   useEffect(() => {
-    setOpenFolders(new Set(defaultFolders));
-  }, [defaultFolders]);
+    try {
+      sessionStorage.setItem(PANEL_LAYOUT_KEY, JSON.stringify(panelWidths));
+    } catch {
+      /* ignore */
+    }
+  }, [panelWidths]);
 
-  useEffect(() => {
-    if (!initialTabs.length) return;
-    initialTabs.forEach((p) => openFile(p));
-    setSelectedFinding(null);
-  }, [usingLive, activeScan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const isScratch = Boolean(activeId && scratchFiles[activeId]);
-  const file = isScratch
-    ? scratchFiles[activeId]
-    : fileContents[activeId] || Object.values(fileContents)[0];
-  const finding = useMemo(() => {
-    if (isScratch) return null;
-    if (selectedFinding && selectedFinding.path === activeId) return selectedFinding;
-    return file?.finding || null;
-  }, [isScratch, selectedFinding, activeId, file?.finding]);
-
-  const editorLines = useMemo(() => {
-    if (isScratch || !file) return undefined;
-    const text =
-      file.text != null
-        ? String(file.text)
-        : (file.lines || []).map((l) => (typeof l === 'string' ? l : l?.text ?? '')).join('\n');
-    const parts = text.length ? text.split('\n') : [''];
-    const hl = finding?.line != null ? Number(finding.line) : null;
-    return parts.map((t, i) => ({
-      n: i + 1,
-      text: t,
-      crash: hl != null && i + 1 === hl,
+  const resizeExplorer = useCallback((dx) => {
+    setPanelWidths((prev) => ({
+      ...prev,
+      explorer: clamp(prev.explorer + dx, EXPLORER_MIN, EXPLORER_MAX),
     }));
-  }, [isScratch, file, finding?.line]);
+  }, []);
+
+  const resizeCheckPanel = useCallback((dx) => {
+    setPanelWidths((prev) => ({
+      ...prev,
+      check: clamp(prev.check - dx, CHECK_MIN, CHECK_MAX),
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (!workspace) return;
+    setOpenFolders(new Set(defaultFolders));
+  }, [workspaceKey, defaultFolders, workspace]);
+
+  // Restore session for this scan (or unique defaults) — no duplicate tabs.
+  // Depend only on workspaceKey so scan polling does not wipe the open session.
+  useEffect(() => {
+    if (scanHydrating || !workspaceKey) return;
+    const persistedTabs = loadPersistedTabs(workspaceKey);
+    const restored = persistedTabs
+      ? filterTabsToExisting(persistedTabs.tabs, fileContents, {})
+      : [];
+    const tabs = restored.length ? restored : defaultTabs;
+    const active =
+      persistedTabs?.activeId && tabs.includes(persistedTabs.activeId)
+        ? persistedTabs.activeId
+        : tabs[0] || null;
+    replaceTabs(tabs, active);
+    setSelectedFinding(null);
+    setScratchFiles({});
+    const persisted = loadPersistedEdits(workspaceKey);
+    setOverrides(persisted);
+    setSavedSnapshot({ ...persisted });
+    // Drop stale "resolved" keys when the issue text is still in the file
+    const loadedResolved = loadResolvedKeys(workspaceKey);
+    const pruned = new Set();
+    for (const key of loadedResolved) {
+      const match = findings.find((f) => findingKey(f) === key);
+      if (!match) {
+        pruned.add(key);
+        continue;
+      }
+      const body =
+        persisted[match.path] != null
+          ? persisted[match.path]
+          : fileBody(fileContents[match.path]);
+      if (!isFindingStillPresent(match, body)) pruned.add(key);
+    }
+    persistResolvedKeys(workspaceKey, pruned);
+    setResolvedKeys(pruned);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once per scan/demo identity
+  }, [workspaceKey, scanHydrating]);
+
+  // Persist open tabs / active file so reload returns where you left off
+  useEffect(() => {
+    if (!workspace || !openTabs.length) return;
+    persistTabs(workspaceKey, openTabs, activeId);
+  }, [workspace, workspaceKey, openTabs, activeId]);
+
+  const originalText = useCallback(
+    (path) => {
+      if (!path) return '';
+      if (scratchFiles[path]) return scratchFiles[path].text ?? '';
+      return fileBody(fileContents[path]);
+    },
+    [scratchFiles, fileContents],
+  );
+
+  const textForPath = useCallback(
+    (path) => {
+      if (!path) return '';
+      if (overrides[path] != null) return overrides[path];
+      return originalText(path);
+    },
+    [overrides, originalText],
+  );
+
+  const editorValue = useMemo(() => {
+    if (!activeId) return '';
+    return textForPath(activeId);
+  }, [activeId, textForPath]);
+
+  const fileDirty = useMemo(() => {
+    if (!activeId) return false;
+    const baseline =
+      savedSnapshot[activeId] != null ? savedSnapshot[activeId] : originalText(activeId);
+    return editorValue !== baseline;
+  }, [activeId, editorValue, savedSnapshot, originalText]);
+
+  /**
+   * Live editor audit — always runs on the current file + open tabs / scratch / edits.
+   * Full-repo scan findings still come from Eyraaaa (Ingest → Start scan).
+   */
+  const editorAuditByPath = useMemo(() => {
+    /** @type {Record<string, object[]>} */
+    const map = {};
+    const paths = new Set(
+      [
+        ...openTabs,
+        ...Object.keys(scratchFiles),
+        ...Object.keys(overrides),
+        activeId,
+      ].filter(Boolean),
+    );
+    for (const path of paths) {
+      const text = textForPath(path);
+      if (!String(text || '').trim()) {
+        map[path] = [];
+        continue;
+      }
+      const langId = langByPath[path] || languageIdFromPath(path);
+      const auditPath = `${path.replace(/\.[^.]+$/, '')}.${languageById(langId).ext}`;
+      // Live audit is always computed from current text — only drop user-resolved keys
+      map[path] = auditFileText(auditPath, text)
+        .map((f) => ({ ...f, path, file: path }))
+        .filter((f) => !resolvedKeys.has(findingKey(f)));
+    }
+    return map;
+  }, [openTabs, scratchFiles, overrides, activeId, textForPath, resolvedKeys, langByPath]);
+
+  /** Scan findings still open + live editor findings. */
+  const liveFindings = useMemo(() => {
+    const fromScan = findings.filter((f) => {
+      const path = f.path;
+      const edited = overrides[path] != null || Boolean(scratchFiles[path]);
+      return keepOpenFinding(f, textForPath(path), resolvedKeys, edited);
+    });
+    const fromEditor = Object.values(editorAuditByPath).flat();
+    return mergeFindingLists(fromScan, fromEditor);
+  }, [findings, resolvedKeys, textForPath, editorAuditByPath, overrides, scratchFiles]);
+
+  const effectiveFileContents = useMemo(() => {
+    /** @type {Record<string, object>} */
+    const out = {};
+    for (const [path, f] of Object.entries(fileContents)) {
+      const edited = overrides[path] != null || Boolean(scratchFiles[path]);
+      const fromScan = findingsForFile(f, path).filter((iss) =>
+        keepOpenFinding(iss, textForPath(path), resolvedKeys, edited),
+      );
+      const remaining = mergeFindingLists(fromScan, editorAuditByPath[path] || []);
+      out[path] = {
+        ...f,
+        allFindings: remaining,
+        finding: remaining[0] || null,
+        dirty: remaining.length > 0,
+      };
+    }
+    for (const [path, sf] of Object.entries(scratchFiles)) {
+      const remaining = editorAuditByPath[path] || [];
+      const langId = langByPath[path] || sf.languageId || languageIdFromPath(path);
+      out[path] = {
+        language: languageById(langId).label,
+        languageId: langId,
+        text: sf.text,
+        _live: true,
+        _scratch: true,
+        allFindings: remaining,
+        finding: remaining[0] || null,
+        dirty: remaining.length > 0 || Boolean(sf.dirty),
+      };
+    }
+    for (const [path, entry] of Object.entries(out)) {
+      const langId = langByPath[path] || entry.languageId || languageIdFromPath(path);
+      entry.languageId = langId;
+      entry.language = languageById(langId).label;
+    }
+    return out;
+  }, [fileContents, scratchFiles, overrides, resolvedKeys, textForPath, editorAuditByPath, langByPath]);
+
+  const effectiveTree = useMemo(() => {
+    const scratchPaths = Object.keys(scratchFiles);
+    const contentPaths = Object.keys(fileContents);
+    if (!repoTree && !scratchPaths.length && !contentPaths.length) return null;
+    const paths = [...contentPaths, ...scratchPaths];
+    const base =
+      scratchPaths.length > 0 || !repoTree
+        ? buildRepoTreeFromPaths(paths, activeScan?.projectName || 'codebase')
+        : repoTree;
+    if (!base) return null;
+    return annotateTreeSeverity(base, effectiveFileContents || {});
+  }, [repoTree, effectiveFileContents, scratchFiles, fileContents, activeScan?.projectName]);
+
+  const tabs = useMemo(
+    () => [
+      { id: 'heatmap', label: 'File Heatmap & Code' },
+      { id: 'issues', label: `Issues (${liveFindings.length})` },
+    ],
+    [liveFindings.length],
+  );
+
+  const file =
+    effectiveFileContents[activeId] ||
+    scratchFiles[activeId] ||
+    Object.values(effectiveFileContents)[0];
+
+  /** Issues for the file currently open in the editor (scan + live check). */
+  const currentFileFindings = useMemo(() => {
+    if (!activeId) return [];
+    return effectiveFileContents[activeId]?.allFindings || [];
+  }, [activeId, effectiveFileContents]);
+
+  const currentFileFindingSig = useMemo(
+    () => currentFileFindings.map((f) => findingKey(f)).join('|'),
+    [currentFileFindings],
+  );
+
+  // Internally re-check current file whenever it changes — surface first open issue
+  useEffect(() => {
+    if (!activeId) return;
+    if (!currentFileFindings.length) {
+      setSelectedFinding((prev) => (prev?.path === activeId ? null : prev));
+      return;
+    }
+    setSelectedFinding((prev) => {
+      if (prev?.path === activeId) {
+        const still = currentFileFindings.find((f) => findingKey(f) === findingKey(prev));
+        if (still) return { ...still, path: activeId };
+      }
+      return { ...currentFileFindings[0], path: activeId };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by signature of open issues
+  }, [activeId, currentFileFindingSig]);
+
+  const finding = useMemo(() => {
+    if (selectedFinding && selectedFinding.path === activeId) {
+      const still = currentFileFindings.find((f) => findingKey(f) === findingKey(selectedFinding));
+      if (still) return { ...still, path: activeId };
+    }
+    return file?.finding || currentFileFindings[0] || null;
+  }, [selectedFinding, activeId, file?.finding, currentFileFindings]);
+
+  const patchView = useMemo(
+    () => buildFixBundle(finding, editorValue),
+    [finding, editorValue],
+  );
+
+  /** Gutter markers for every open issue on the active file (concurrent as you type). */
+  const issueLines = useMemo(() => {
+    /** @type {Record<number, string>} */
+    const map = {};
+    for (const iss of currentFileFindings) {
+      const ln = Number(iss.line);
+      if (!ln) continue;
+      if (!map[ln]) map[ln] = String(iss.title || 'Issue').slice(0, 48);
+    }
+    return map;
+  }, [currentFileFindings]);
+
+  /** Per-issue: Apply is enabled for every finding that has a generated fix. */
+  const fixMetaByKey = useMemo(() => {
+    /** @type {Record<string, { hasFix: boolean }>} */
+    const map = {};
+    for (const iss of currentFileFindings) {
+      const b = buildFixBundle(iss, editorValue);
+      map[findingKey(iss)] = { hasFix: Boolean(b.hasFix) };
+    }
+    return map;
+  }, [currentFileFindings, editorValue]);
+
+  const autoFixableCount = useMemo(
+    () => currentFileFindings.filter((iss) => fixMetaByKey[findingKey(iss)]?.hasFix).length,
+    [currentFileFindings, fixMetaByKey],
+  );
 
   const tabItems = useMemo(
     () =>
-      openTabs.map((id) => ({
-        id,
-        name: id.split('/').pop(),
-        dirty: scratchFiles[id] ? true : fileContents[id]?.dirty,
-        severity: scratchFiles[id]
-          ? null
-          : fileContents[id]?.finding
-            ? String(fileContents[id].finding.severity || 'critical').toLowerCase()
-            : null,
-      })),
-    [openTabs, scratchFiles, fileContents],
+      openTabs.map((id) => {
+        const baseline = savedSnapshot[id] != null ? savedSnapshot[id] : originalText(id);
+        const cur = overrides[id] != null ? overrides[id] : originalText(id);
+        const primary = effectiveFileContents[id]?.finding;
+        return {
+          id,
+          name: id.split('/').pop(),
+          dirty: cur !== baseline || Boolean(scratchFiles[id]?.dirty && overrides[id] == null),
+          severity: primary ? String(primary.severity || 'critical').toLowerCase() : null,
+        };
+      }),
+    [openTabs, scratchFiles, effectiveFileContents, overrides, savedSnapshot, originalText],
   );
 
   const dirtyIds = useMemo(() => {
     const set = new Set();
     for (const id of openTabs) {
-      if (scratchFiles[id] || fileContents[id]?.dirty) set.add(id);
+      const baseline = savedSnapshot[id] != null ? savedSnapshot[id] : originalText(id);
+      const cur = overrides[id] != null ? overrides[id] : originalText(id);
+      if (cur !== baseline) set.add(id);
     }
     return set;
-  }, [openTabs, scratchFiles, fileContents]);
+  }, [openTabs, overrides, savedSnapshot, originalText]);
 
   function toggleFolder(id) {
     setOpenFolders((prev) => {
@@ -186,7 +583,7 @@ export function AuditCodeWorkspace() {
 
   const openFinding = useCallback(
     (path, issue = null) => {
-      if (!path || !fileContents[path]) {
+      if (!path || (!effectiveFileContents[path] && !scratchFiles[path] && !fileContents[path])) {
         showToast?.('Source file not available for this finding', 'info');
         return;
       }
@@ -194,32 +591,156 @@ export function AuditCodeWorkspace() {
       if (issue) {
         setSelectedFinding({ ...issue, path });
       } else {
-        const primary = fileContents[path]?.finding;
+        const primary = effectiveFileContents[path]?.finding;
         setSelectedFinding(primary ? { path, ...primary } : null);
       }
-      if (fileContents[path]?._snippetOnly) {
+      if (effectiveFileContents[path]?._snippetOnly) {
         showToast?.('Showing snippet-only content — full file body was not in scan payload', 'info');
       }
       setSection('heatmap');
     },
-    [openFile, fileContents, showToast],
+    [openFile, effectiveFileContents, scratchFiles, fileContents, showToast],
   );
 
+  const checkActiveFile = useCallback(() => {
+    if (!activeId) return;
+    const text = textForPath(activeId);
+    const found = auditFileText(activeId, text).filter((f) => {
+      const key = findingKey(f);
+      if (resolvedKeys.has(key)) return false;
+      return isFindingStillPresent(f, text);
+    });
+    // Ensure buffer is tracked so editorAuditByPath keeps auditing this path
+    if (overrides[activeId] == null) {
+      setOverrides((prev) => ({ ...prev, [activeId]: text }));
+    }
+    if (found.length) {
+      setSelectedFinding(found[0]);
+      showToast?.(
+        `Checked ${activeId.split('/').pop()}: ${found.length} issue${found.length === 1 ? '' : 's'} found`,
+        'info',
+      );
+    } else {
+      setSelectedFinding(null);
+      showToast?.(`Checked ${activeId.split('/').pop()}: no issues found`, 'info');
+    }
+    setSection('heatmap');
+  }, [activeId, textForPath, resolvedKeys, overrides, showToast]);
+
   const addNewFile = useCallback(() => {
-    const id = `scratch/untitled-${scratchSeq}.py`;
+    const lang = languageById(newFileLangId);
+    const id = `scratch/untitled-${scratchSeq}.${lang.ext}`;
+    const text = lang.template || '';
     setScratchSeq((n) => n + 1);
     setScratchFiles((prev) => ({
       ...prev,
       [id]: {
-        language: 'Python 3.11',
+        language: lang.label,
+        languageId: lang.id,
         dirty: true,
         finding: null,
-        text: NEW_FILE_TEMPLATE,
+        text,
       },
     }));
+    setLangByPath((prev) => ({ ...prev, [id]: lang.id }));
+    setOverrides((prev) => ({ ...prev, [id]: text }));
     openFile(id);
     setSection('heatmap');
-  }, [openFile, scratchSeq]);
+  }, [openFile, scratchSeq, newFileLangId]);
+
+  const changeEditorLanguage = useCallback(
+    (nextLangId) => {
+      if (!activeId || !nextLangId) return;
+      const lang = languageById(nextLangId);
+      const isScratchPath = Boolean(scratchFiles[activeId]) || activeId.startsWith('scratch/');
+
+      if (isScratchPath) {
+        const base = activeId.replace(/\.[^.]+$/, '');
+        const newId = `${base}.${lang.ext}`;
+        const text = overrides[activeId] ?? scratchFiles[activeId]?.text ?? lang.template ?? '';
+        const onlyWhitespaceOrTemplate =
+          !overrides[activeId] ||
+          text === scratchFiles[activeId]?.text ||
+          /^(\s|\/\/|#|\/\*|\*\/|<\?php)*/.test(text.slice(0, 40));
+
+        // If buffer still matches the previous starter template, swap to the new language template
+        const prevLang = languageById(
+          langByPath[activeId] || scratchFiles[activeId]?.languageId || languageIdFromPath(activeId),
+        );
+        const useTemplate = text.trim() === (prevLang.template || '').trim() || !text.trim();
+        const nextText = useTemplate ? lang.template || text : text;
+
+        if (newId !== activeId) {
+          setScratchFiles((prev) => {
+            const next = { ...prev };
+            const old = next[activeId] || { dirty: true, text: nextText };
+            delete next[activeId];
+            next[newId] = {
+              ...old,
+              language: lang.label,
+              languageId: lang.id,
+              text: nextText,
+              dirty: true,
+            };
+            return next;
+          });
+          setOverrides((prev) => {
+            const next = { ...prev };
+            delete next[activeId];
+            next[newId] = nextText;
+            return next;
+          });
+          setLangByPath((prev) => {
+            const next = { ...prev };
+            delete next[activeId];
+            next[newId] = lang.id;
+            return next;
+          });
+          setSavedSnapshot((prev) => {
+            if (prev[activeId] == null && prev[newId] == null) return prev;
+            const next = { ...prev };
+            if (next[activeId] != null) {
+              next[newId] = next[activeId];
+              delete next[activeId];
+            }
+            return next;
+          });
+          replaceTabs(
+            openTabs.map((t) => (t === activeId ? newId : t)),
+            newId,
+          );
+        } else {
+          setLangByPath((prev) => ({ ...prev, [activeId]: lang.id }));
+          setScratchFiles((prev) => ({
+            ...prev,
+            [activeId]: {
+              ...(prev[activeId] || {}),
+              language: lang.label,
+              languageId: lang.id,
+              text: nextText,
+            },
+          }));
+          if (useTemplate || onlyWhitespaceOrTemplate) {
+            setOverrides((prev) => ({ ...prev, [activeId]: nextText }));
+          }
+        }
+        setNewFileLangId(lang.id);
+        return;
+      }
+
+      // Scan files: keep path, override editor language for highlighting / live checks
+      setLangByPath((prev) => ({ ...prev, [activeId]: lang.id }));
+      setNewFileLangId(lang.id);
+    },
+    [
+      activeId,
+      scratchFiles,
+      overrides,
+      langByPath,
+      openTabs,
+      replaceTabs,
+    ],
+  );
 
   const handleClose = useCallback(
     (id) => {
@@ -231,19 +752,212 @@ export function AuditCodeWorkspace() {
           return next;
         });
       }
+      setOverrides((prev) => {
+        if (prev[id] == null) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     },
     [closeTab, scratchFiles],
   );
 
+  const handleEditorChange = useCallback(
+    (text) => {
+      if (!activeId) return;
+      setOverrides((prev) => ({ ...prev, [activeId]: text }));
+      if (scratchFiles[activeId]) {
+        setScratchFiles((prev) => ({
+          ...prev,
+          [activeId]: { ...prev[activeId], text, dirty: true },
+        }));
+      }
+    },
+    [activeId, scratchFiles],
+  );
+
+  const handleSave = useCallback(() => {
+    if (!activeId) return;
+    const text = overrides[activeId] != null ? overrides[activeId] : originalText(activeId);
+    setSavedSnapshot((prev) => {
+      const next = { ...prev, [activeId]: text };
+      persistEdits(workspaceKey, { ...overrides, [activeId]: text });
+      return next;
+    });
+    setOverrides((prev) => ({ ...prev, [activeId]: text }));
+    if (scratchFiles[activeId]) {
+      setScratchFiles((prev) => ({
+        ...prev,
+        [activeId]: { ...prev[activeId], text, dirty: false },
+      }));
+    }
+    const found = auditFileText(activeId, text).filter((f) => !resolvedKeys.has(findingKey(f)));
+    if (found.length) {
+      setSelectedFinding(found[0]);
+      showToast?.(
+        `Saved · re-checked: ${found.length} issue${found.length === 1 ? '' : 's'} found`,
+        'info',
+      );
+    } else {
+      setSelectedFinding((prev) => (prev?.path === activeId ? null : prev));
+      showToast?.('Saved · re-checked: no issues found', 'info');
+    }
+  }, [activeId, overrides, originalText, workspaceKey, scratchFiles, showToast, resolvedKeys]);
+
+  const recheckFileAfterEdit = useCallback(
+    (path, nextText, appliedKeys = []) => {
+      const fileIssues = mergeFindingLists(
+        findingsForFile(fileContents[path] || effectiveFileContents[path], path),
+        auditFileText(path, nextText),
+      );
+      const applied = new Set(appliedKeys);
+      const stillOpen = [];
+      const newlyResolved = new Set(applied);
+      for (const iss of fileIssues) {
+        const key = findingKey(iss);
+        if (applied.has(key)) continue;
+        if (resolvedKeys.has(key)) continue;
+        if (isFindingStillPresent(iss, nextText)) stillOpen.push(iss);
+        else newlyResolved.add(key);
+      }
+      setResolvedKeys((prev) => {
+        const merged = new Set(prev);
+        for (const k of newlyResolved) merged.add(k);
+        persistResolvedKeys(workspaceKey, merged);
+        return merged;
+      });
+      const nextFinding = stillOpen[0] ? { ...stillOpen[0], path } : null;
+      setSelectedFinding(nextFinding);
+      return stillOpen;
+    },
+    [fileContents, effectiveFileContents, resolvedKeys, workspaceKey],
+  );
+
+  const applyOptsFromBundle = (bundle) => ({
+    startLine: bundle.targetLine || undefined,
+    endLine: bundle.endLine || undefined,
+    replaceWholeFile: Boolean(bundle.replaceWholeFile),
+    deleteLine: Boolean(bundle.deleteLine),
+  });
+
+  const applyPatchToEditor = useCallback(() => {
+    if (!activeId || !finding) {
+      showToast?.('Select an issue first, then Apply fix', 'info');
+      return;
+    }
+    const bundle = buildFixBundle(finding, editorValue);
+    if (!bundle.hasFix) {
+      showToast?.('Could not build a fix for this issue', 'error');
+      return;
+    }
+    const opts = applyOptsFromBundle(bundle);
+    let next = applyCorrectedAtFinding(editorValue, finding, bundle.corrected, opts);
+    if (next === editorValue && !opts.replaceWholeFile) {
+      const lines = editorValue.split('\n');
+      const start = Math.max(0, (Number(bundle.targetLine || finding.line) || 1) - 1);
+      const endLine = Number(bundle.endLine || bundle.targetLine || finding.line) || start + 1;
+      const end = Math.max(start, Math.min(lines.length, endLine) - 1);
+      if (start >= lines.length) {
+        showToast?.('Could not locate the line to patch', 'error');
+        return;
+      }
+      if (opts.deleteLine || !String(bundle.corrected || '').trim()) {
+        lines.splice(start, end - start + 1);
+      } else {
+        lines.splice(start, end - start + 1, ...bundle.corrected.split('\n'));
+      }
+      next = lines.join('\n');
+    }
+    if (next === editorValue) {
+      showToast?.('Fix produced no editor change', 'error');
+      return;
+    }
+    handleEditorChange(next);
+    const stillOpen = recheckFileAfterEdit(activeId, next, [findingKey(finding)]);
+    if (stillOpen.length) {
+      showToast?.(
+        `Fix applied — re-checked: ${stillOpen.length} issue${stillOpen.length === 1 ? '' : 's'} still open. Save (Ctrl+S) to keep.`,
+        'info',
+      );
+    } else {
+      showToast?.(
+        'Editor preview applied (not written to disk). Re-checked: no issues in buffer. Save keeps session edits only — not a verified repo fix.',
+        'info',
+      );
+    }
+  }, [activeId, editorValue, finding, handleEditorChange, showToast, recheckFileAfterEdit]);
+
+  /** Apply every issue on the current file (bottom-up), then re-check. */
+  const applyAllFixesOnFile = useCallback(() => {
+    if (!activeId) return;
+    if (!currentFileFindings.length) {
+      showToast?.('No issues to fix on this file', 'info');
+      return;
+    }
+    let text = editorValue;
+    const issues = [...currentFileFindings].sort((a, b) => (b.line || 0) - (a.line || 0));
+    const appliedKeys = [];
+    let appliedCount = 0;
+    for (const iss of issues) {
+      const bundle = buildFixBundle(iss, text);
+      if (!bundle.hasFix) continue;
+      const opts = applyOptsFromBundle(bundle);
+      let next = applyCorrectedAtFinding(text, iss, bundle.corrected, opts);
+      if (next === text && !opts.replaceWholeFile) {
+        const lines = text.split('\n');
+        const start = Math.max(0, (Number(bundle.targetLine || iss.line) || 1) - 1);
+        const endLine = Number(bundle.endLine || bundle.targetLine || iss.line) || start + 1;
+        const end = Math.max(start, Math.min(lines.length, endLine) - 1);
+        if (start < lines.length) {
+          if (opts.deleteLine || !String(bundle.corrected || '').trim()) {
+            lines.splice(start, end - start + 1);
+          } else {
+            lines.splice(start, end - start + 1, ...bundle.corrected.split('\n'));
+          }
+          next = lines.join('\n');
+        }
+      }
+      if (next === text) continue;
+      text = next;
+      appliedKeys.push(findingKey(iss));
+      appliedCount += 1;
+    }
+    if (!appliedCount) {
+      showToast?.('Could not apply automatic fixes — try Apply on each issue', 'info');
+      return;
+    }
+    handleEditorChange(text);
+    const stillOpen = recheckFileAfterEdit(activeId, text, appliedKeys);
+    if (stillOpen.length) {
+      showToast?.(
+        `Editor preview: ${appliedCount} fix${appliedCount === 1 ? '' : 'es'} in buffer — ${stillOpen.length} remain. Not written to disk; not verified on the repository.`,
+        'info',
+      );
+    } else {
+      showToast?.(
+        `Editor preview: ${appliedCount} fix${appliedCount === 1 ? '' : 'es'} in buffer — client re-check clean. Not a disk write or backend re-scan.`,
+        'info',
+      );
+    }
+  }, [
+    activeId,
+    editorValue,
+    currentFileFindings,
+    handleEditorChange,
+    recheckFileAfterEdit,
+    showToast,
+  ]);
+
   async function copyDiff() {
-    if (!finding?.patch) {
-      showToast?.('No suggested patch diff for this finding', 'info');
+    const payload = patchView.corrected || finding?.patch || patchView.remediation;
+    if (!payload) {
+      showToast?.('No suggested patch / corrected code for this finding', 'info');
       return;
     }
     try {
-      await navigator.clipboard.writeText(finding.patch);
+      await navigator.clipboard.writeText(payload);
       setCopied(true);
-      showToast?.('Patch diff copied — not applied to the scanned tree', 'info');
+      showToast?.('Copied to clipboard', 'info');
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
@@ -251,8 +965,48 @@ export function AuditCodeWorkspace() {
     }
   }
 
-  const critical = findings.filter((f) => /critical/i.test(f.severity || f.title || '')).length;
-  const high = findings.filter((f) => /high/i.test(f.severity || f.title || '')).length;
+  if (scanHydrating || !workspace) {
+    return (
+      <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col items-center justify-center gap-3 bg-surface-container-lowest px-space-md">
+        <span
+          className={`material-symbols-outlined text-[32px] text-primary ${
+            hydrateTimedOut ? '' : 'animate-pulse'
+          }`}
+        >
+          {hydrateTimedOut ? 'cloud_off' : 'progress_activity'}
+        </span>
+        <p className="font-headline-sm text-headline-sm text-on-surface">
+          {hydrateTimedOut ? 'Scan engine unavailable' : 'Loading scan workspace…'}
+        </p>
+        <p className="max-w-md text-center font-body-sm text-body-sm text-on-surface-variant">
+          {hydrateTimedOut
+            ? `Could not restore ${String(activeScanId || '').slice(0, 8)} — Eyraaaa may be offline or the scan expired.`
+            : `Restoring ${String(activeScanId || '').slice(0, 8)}`}
+        </p>
+        {hydrateTimedOut ? (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              className="rounded-lg bg-primary-container px-space-md py-2 font-label-sm text-label-sm text-on-primary-container"
+              onClick={() => {
+                clearActiveScan?.();
+                setAuditView?.('ingest');
+              }}
+            >
+              Clear &amp; ingest again
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-surface-container-high px-space-md py-2 font-label-sm text-label-sm text-on-surface"
+              onClick={() => clearActiveScan?.()}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden select-none">
@@ -265,15 +1019,26 @@ export function AuditCodeWorkspace() {
                 : 'border-outline-variant/40 bg-surface-container text-on-surface-variant'
             }`}
           >
-            {usingLive ? 'AST-ACTIVE · LIVE' : 'DEMO FALLBACK'}
+            {usingLive ? 'AST-ACTIVE · LIVE' : 'NO SCAN DATA'}
           </span>
           <span className="truncate font-code-compact text-code-compact text-on-surface-variant">
-            {projectLabel} · {Object.keys(fileContents).length} files
-            {usingLive ? '' : ' · mockRepo'}
+            {projectLabel} ·{' '}
+            {Object.keys(fileContents).length + Object.keys(scratchFiles).length} files
+            {activeScan?.fileInventory?.skippedNoise
+              ? ` · ${activeScan.fileInventory.skippedNoise} noise skipped`
+              : ''}
           </span>
         </div>
-        <span className="rounded bg-error-container/35 px-2 py-0.5 font-label-sm text-label-sm font-semibold text-error">
-          {findings.length} Vulnerabilities Total
+        <span
+          className={`rounded px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+            liveFindings.length
+              ? 'bg-error-container/35 text-error'
+              : 'bg-tertiary/15 text-tertiary'
+          }`}
+        >
+          {liveFindings.length
+            ? `${liveFindings.length} open issues`
+            : 'No issues found'}
         </span>
       </div>
 
@@ -294,49 +1059,43 @@ export function AuditCodeWorkspace() {
         ))}
       </div>
 
-      {section === 'overview' ? (
-        <OverviewPanel
-          findings={findings}
-          critical={critical}
-          high={high}
-          partials={partials.length}
-          deps={deps.length}
-          onOpenHeatmap={() => setSection('heatmap')}
-          onOpenIssues={() => setSection('issues')}
-        />
-      ) : null}
-
       {section === 'issues' ? (
-        <IssueList findings={findings} onOpen={openFinding} usingLive={usingLive} />
+        <IssueList findings={liveFindings} onOpen={openFinding} usingLive={usingLive} />
       ) : null}
-
-      {section === 'partials' ? (
-        <PartialList items={partials} onOpen={openFinding} demo={!livePartials} />
-      ) : null}
-
-      {section === 'deps' ? (
-        <DepsList items={deps} onOpen={openFinding} usingLive={usingLive} />
-      ) : null}
-
-      {section === 'trends' ? <TrendPanel points={trendPoints} demo={!liveTrends} /> : null}
 
       {section === 'heatmap' ? (
         <>
           <div className="flex min-h-0 flex-1 overflow-hidden bg-surface-container-lowest">
             <FileExplorer
-              tree={repoTree}
+              tree={effectiveTree}
               open={openFolders}
               selected={activeId}
+              width={panelWidths.explorer}
               onToggle={toggleFolder}
-              onSelect={openFile}
+              onSelect={(id) => {
+                openFile(id);
+                const primary = effectiveFileContents[id]?.finding;
+                setSelectedFinding(primary ? { path: id, ...primary } : null);
+              }}
+            />
+            <PanelResizeHandle
+              onDrag={resizeExplorer}
+              title="Drag to resize explorer"
             />
 
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div
+              className="flex min-w-0 flex-1 flex-col overflow-hidden"
+              style={{ minWidth: EDITOR_MIN }}
+            >
               <FileTabBar
                 tabs={tabItems}
                 activeId={activeId}
                 dirtyIds={dirtyIds}
-                onSelect={setActiveId}
+                onSelect={(id) => {
+                  setActiveId(id);
+                  const list = effectiveFileContents[id]?.allFindings || [];
+                  setSelectedFinding(list[0] ? { path: id, ...list[0] } : null);
+                }}
                 onClose={handleClose}
                 onAdd={addNewFile}
               />
@@ -344,34 +1103,48 @@ export function AuditCodeWorkspace() {
                 <CodeEditor
                   path={activeId}
                   language={file.language}
-                  lines={isScratch ? undefined : editorLines}
-                  editable={isScratch}
-                  value={isScratch ? file.text : undefined}
-                  onChange={
-                    isScratch
-                      ? (text) =>
-                          setScratchFiles((prev) => ({
-                            ...prev,
-                            [activeId]: { ...prev[activeId], text, dirty: true },
-                          }))
-                      : undefined
-                  }
+                  editable
+                  value={editorValue}
+                  dirty={fileDirty}
+                  onChange={handleEditorChange}
+                  onSave={handleSave}
                   findingLine={finding?.line}
                   findingLabel={finding?.title}
-                metaRight={
-                  <>
-                    <span className="rounded bg-surface-container px-1.5 py-0.5 font-label-sm text-[10px] text-tertiary">
-                      {isScratch
-                        ? 'Scratch'
-                        : file?._snippetOnly
-                          ? 'Snippet only'
-                          : usingLive
-                            ? 'Live scan file'
-                            : 'Tree-sitter AST Parsed'}
-                    </span>
-                    <span className="font-label-sm text-label-sm text-outline">{file.language}</span>
-                  </>
-                }
+                  issueLines={issueLines}
+                  metaRight={
+                    <>
+                      {activeId?.startsWith('scratch/') || scratchFiles[activeId] ? (
+                        <LanguageSelect
+                          value={
+                            langByPath[activeId] ||
+                            file?.languageId ||
+                            languageIdFromPath(activeId)
+                          }
+                          onChange={changeEditorLanguage}
+                          options={AUDIT_LANGUAGES}
+                          aria-label="Code language"
+                        />
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 font-label-sm text-label-sm text-outline">
+                          <LanguageLogo
+                            langId={languageIdFromPath(activeId)}
+                            size={14}
+                            showLabel
+                          />
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={!fileDirty}
+                        className="flex items-center gap-1 rounded bg-primary-container px-2 py-0.5 font-label-sm text-[11px] font-semibold text-on-primary-container disabled:cursor-not-allowed disabled:opacity-40"
+                        title="Save (Ctrl+S)"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">save</span>
+                        Save
+                      </button>
+                    </>
+                  }
                 />
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 font-body-sm text-body-sm text-outline">
@@ -388,85 +1161,278 @@ export function AuditCodeWorkspace() {
               )}
             </div>
 
-            <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-outline-variant/25 bg-surface-container-low 2xl:w-96">
-              {finding ? (
-                <>
-                  <div className="border-b border-outline-variant/20 bg-surface-container-lowest p-space-sm">
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[16px] text-error">gpp_maybe</span>
-                      <span className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-                        AST Static Security Proof
-                      </span>
-                    </div>
-                    <span className="mt-1 inline-flex rounded bg-error-container/40 px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase text-error">
-                      {finding.cwe}
+            <PanelResizeHandle
+              onDrag={resizeCheckPanel}
+              title="Drag to resize Current file check"
+            />
+            <aside
+              style={{
+                width: panelWidths.check,
+                minWidth: panelWidths.check,
+                maxWidth: panelWidths.check,
+              }}
+              className="flex shrink-0 flex-col overflow-hidden border-l border-outline-variant/25 bg-surface-container-low"
+            >
+              {/* Pinned header — does not scroll away */}
+              <div className="shrink-0 border-b border-outline-variant/20 bg-surface-container-lowest p-space-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-primary">
+                      fact_check
+                    </span>
+                    <span className="truncate font-headline-sm text-headline-sm font-semibold text-on-surface">
+                      Current file check
                     </span>
                   </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-label-sm text-[10px] font-semibold ${
+                        currentFileFindings.length
+                          ? 'bg-error-container/40 text-error'
+                          : 'bg-tertiary/15 text-tertiary'
+                      }`}
+                    >
+                      {currentFileFindings.length
+                        ? `${currentFileFindings.length} issue${currentFileFindings.length === 1 ? '' : 's'}`
+                        : 'Clean'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={checkActiveFile}
+                      className="flex items-center gap-1 rounded bg-surface-container-high px-2 py-1 font-label-sm text-[11px] font-semibold text-on-surface hover:bg-surface-bright"
+                      title="Re-check this file now"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">bug_report</span>
+                      Re-check
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-1 truncate font-code-compact text-code-compact text-outline">
+                  {activeId || '—'}
+                </p>
+                <div className="mt-2 flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={applyPatchToEditor}
+                    disabled={!finding || !patchView.hasFix}
+                    className="flex flex-1 items-center justify-center gap-1 rounded bg-primary-container px-2 py-1.5 font-label-sm text-[11px] font-semibold text-on-primary-container hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      !finding
+                        ? 'Select an issue first'
+                        : patchView.applyHint ||
+                          `Apply fix at line ${patchView.targetLine || finding.line || '?'}`
+                    }
+                  >
+                    <span className="material-symbols-outlined text-[14px]">auto_fix</span>
+                    Apply fix
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyAllFixesOnFile}
+                    disabled={!currentFileFindings.length || autoFixableCount === 0}
+                    className="flex flex-1 items-center justify-center gap-1 rounded bg-surface-container-high px-2 py-1.5 font-label-sm text-[11px] font-semibold text-on-surface hover:bg-surface-bright disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      currentFileFindings.length === 0
+                        ? 'No issues on this file'
+                        : `Apply all ${autoFixableCount} fix${autoFixableCount === 1 ? '' : 'es'} on this file`
+                    }
+                  >
+                    <span className="material-symbols-outlined text-[14px]">playlist_add_check</span>
+                    Fix all{autoFixableCount > 0 ? ` (${autoFixableCount})` : ''}
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable body only */}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {currentFileFindings.length ? (
+                  <ul className="flex flex-col gap-0.5 border-b border-outline-variant/20 p-space-sm">
+                    {currentFileFindings.map((iss) => {
+                      const active = finding && findingKey(finding) === findingKey(iss);
+                      const meta = fixMetaByKey[findingKey(iss)];
+                      const canAuto = Boolean(meta?.hasFix);
+                      return (
+                        <li key={findingKey(iss)}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFinding({ ...iss, path: activeId })}
+                            className={`flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left ${
+                              active
+                                ? 'bg-primary-container/20 ring-1 ring-primary/30'
+                                : 'hover:bg-surface-container'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="truncate font-label-sm text-[12px] font-semibold text-on-surface">
+                                {iss.title}
+                              </span>
+                              <span className="flex shrink-0 items-center gap-1">
+                                {canAuto ? (
+                                  <span className="rounded bg-tertiary/20 px-1 py-px font-label-sm text-[9px] font-bold uppercase text-tertiary">
+                                    Fix
+                                  </span>
+                                ) : null}
+                                <span
+                                  className={`rounded px-1 py-px font-label-sm text-[9px] font-bold uppercase ${severityChipClass(iss.severity)}`}
+                                >
+                                  {iss.severity}
+                                </span>
+                              </span>
+                            </div>
+                            <span className="font-code-compact text-[10px] text-outline">
+                              Ln {iss.line}
+                              {canAuto ? ' · Apply available' : ''}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+
+                {finding ? (
                   <div className="flex flex-col gap-space-md p-space-md">
                     <div className="flex flex-col gap-1.5">
-                      <span className="font-label-sm text-label-sm uppercase text-outline">Finding</span>
-                      <p className="font-body-md text-body-md leading-snug text-on-surface">
-                        {finding.summary}
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <span className="font-label-sm text-label-sm uppercase text-outline">Impact</span>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant">{finding.impact}</p>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-label-sm text-label-sm uppercase text-outline">
-                          AI-Generated Patch
+                      <div className="flex flex-wrap items-center gap-1">
+                        {finding.severity ? (
+                          <span
+                            className={`inline-flex rounded px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase ${severityChipClass(finding.severity)}`}
+                          >
+                            {finding.severity}
+                          </span>
+                        ) : null}
+                        <span className="inline-flex rounded bg-error-container/40 px-1.5 py-0.5 font-label-sm text-[10px] font-semibold uppercase text-error">
+                          {finding.cwe}
                         </span>
+                        {finding.line != null ? (
+                          <span className="font-code-compact text-code-compact text-outline">
+                            Ln {finding.line}
+                          </span>
+                        ) : null}
                       </div>
-                      <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-surface-container-lowest p-2 font-code-compact text-code-compact text-on-surface-variant">
-                        {finding.patch}
-                      </pre>
+                      <p className="font-headline-sm text-headline-sm font-semibold text-on-surface">
+                        {finding.title || 'Finding'}
+                      </p>
+                      <p className="font-body-md text-body-md leading-snug text-on-surface-variant">
+                        {finding.summary || finding.title}
+                      </p>
+                      {finding.impact &&
+                      normalizeFindingText(finding.impact) !==
+                        normalizeFindingText(finding.summary || finding.title) ? (
+                        <p className="font-body-sm text-body-sm text-outline">{finding.impact}</p>
+                      ) : null}
                     </div>
-                    <div className="flex flex-col gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={copyDiff}
-                        className="flex w-full items-center justify-center gap-2 rounded bg-surface-container-high px-space-sm py-2 font-label-sm text-label-sm font-semibold text-on-surface hover:bg-surface-bright"
-                      >
-                        <span className="material-symbols-outlined text-[15px] text-primary">
-                          content_copy
-                        </span>
-                        {copied ? 'Copied Diff' : 'Copy Unified Diff'}
-                      </button>
+
+                    <div className="flex flex-col gap-2 border-t border-outline-variant/20 pt-space-md">
+                      {patchView.remediation ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="font-label-sm text-label-sm uppercase text-outline">
+                            What to do
+                          </span>
+                          <p className="font-body-sm text-body-sm text-on-surface-variant">
+                            {patchView.remediation}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <p className="font-body-sm text-body-sm text-outline">{patchView.applyHint}</p>
+
+                      {patchView.hasFix ? (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-label-sm text-label-sm uppercase text-outline">
+                              Diff
+                              {patchView.targetLine != null ? ` · from line ${patchView.targetLine}` : ''}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={copyDiff}
+                              className="flex items-center gap-0.5 rounded p-1 text-primary hover:bg-surface-container"
+                              title="Copy corrected code"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">
+                                {copied ? 'check' : 'content_copy'}
+                              </span>
+                            </button>
+                          </div>
+                          <pre className="max-h-64 overflow-auto rounded border border-outline-variant/25 bg-surface-container-lowest p-2 font-code-compact text-code-compact leading-relaxed">
+                            {(patchView.diffLines?.length
+                              ? patchView.diffLines
+                              : [
+                                  ...String(patchView.originalLine || '')
+                                    .split('\n')
+                                    .slice(0, 40)
+                                    .map((t, i) => ({
+                                      kind: 'del',
+                                      text: `${String((patchView.targetLine || 1) + i).padStart(4, ' ')} − ${t}`,
+                                    })),
+                                  ...patchView.corrected
+                                    .split('\n')
+                                    .slice(0, 40)
+                                    .map((t, i) => ({
+                                      kind: 'add',
+                                      text: `${String((patchView.targetLine || 1) + i).padStart(4, ' ')} + ${t}`,
+                                    })),
+                                ]
+                            ).map((row, i) => (
+                              <div
+                                key={`${i}-${row.text.slice(0, 32)}`}
+                                className={
+                                  row.kind === 'add'
+                                    ? 'whitespace-pre bg-tertiary/15 text-tertiary'
+                                    : row.kind === 'del'
+                                      ? 'whitespace-pre bg-error/15 text-error'
+                                      : 'whitespace-pre text-on-surface-variant'
+                                }
+                              >
+                                {row.text || ' '}
+                              </div>
+                            ))}
+                          </pre>
+                        </div>
+                      ) : (
+                        <p className="rounded border border-outline-variant/30 bg-surface-container px-2 py-2 font-body-sm text-body-sm text-on-surface-variant">
+                          Building fix… or select another issue.
+                        </p>
+                      )}
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="flex flex-1 flex-col items-center justify-center gap-2 p-space-lg text-center">
-                  <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
-                  <p className="font-headline-sm text-headline-sm text-on-surface">No findings</p>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    This file passed AST static checks. Open a flagged file from the explorer.
-                  </p>
-                </div>
-              )}
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2 p-space-lg text-center">
+                    <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
+                    <p className="font-headline-sm text-headline-sm text-on-surface">No issues found</p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      {usingLive
+                        ? liveFindings.length === 0
+                          ? 'This live scan reported no open findings for the repo. Severity flags appear only where Eyraaaa / live rules detect issues — try another file or re-run Ingest → Start scan.'
+                          : 'This file has no open findings. Other files still have issues — check the explorer badges or the Issues tab.'
+                        : 'This file has no open findings. Type a mistake (e.g. `def foo()` without `:`, or `print hello`) — issues appear on that line as you type.'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </aside>
           </div>
 
           <footer className="flex shrink-0 flex-wrap items-center justify-between gap-space-sm border-t border-outline-variant/20 bg-surface-container-lowest px-space-md py-1.5 font-code-compact text-code-compact text-outline">
             <div className="flex flex-wrap items-center gap-space-md">
               <span>
-                Parser: <span className="text-on-surface-variant">{file?.language || '—'}</span>
+                Lang: <span className="text-on-surface-variant">{file?.language || '—'}</span>
               </span>
               <span>
                 File: <span className="text-primary">{activeId}</span>
               </span>
-              {finding ? (
+              <span>Tab = indent · Ctrl+S = save</span>
+              {finding?.line != null ? (
                 <span>
-                  Cursor: <span className="text-primary">Ln {finding.line}</span>
+                  Issue: <span className="text-primary">Ln {finding.line}</span>
                 </span>
               ) : null}
             </div>
-            {finding ? (
-              <span className="text-error">{finding.title}</span>
+            {fileDirty ? (
+              <span className="text-secondary">Unsaved changes</span>
             ) : (
-              <span className="text-tertiary">Clean</span>
+              <span className="text-tertiary">Saved</span>
             )}
           </footer>
         </>
@@ -475,68 +1441,30 @@ export function AuditCodeWorkspace() {
   );
 }
 
-function OverviewPanel({ findings, critical, high, partials, deps, onOpenHeatmap, onOpenIssues }) {
-  return (
-    <div className="flex flex-1 flex-col gap-space-md overflow-auto p-space-xl">
-      <div>
-        <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-          Audit overview
-        </h2>
-        <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-          Snapshot of static findings across the loaded codebase.
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Total issues', value: findings.length, tone: 'text-error' },
-          { label: 'Critical / High', value: `${critical} / ${high}`, tone: 'text-secondary' },
-          { label: 'Partial features', value: partials, tone: 'text-primary' },
-          { label: 'CVE deps', value: deps, tone: 'text-on-surface' },
-        ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded border border-outline-variant/25 bg-surface-container-low p-space-md"
-          >
-            <div className="font-label-sm text-label-sm uppercase text-outline">{card.label}</div>
-            <div className={`mt-1 font-headline-sm text-headline-sm font-semibold ${card.tone}`}>
-              {card.value}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onOpenIssues}
-          className="rounded bg-surface-container-high px-space-md py-2 font-label-md text-label-md text-on-surface"
-        >
-          Browse issues
-        </button>
-        <button
-          type="button"
-          onClick={onOpenHeatmap}
-          className="rounded bg-primary-container px-space-md py-2 font-label-md text-label-md font-semibold text-on-primary-container"
-        >
-          Open File Heatmap &amp; Code
-        </button>
-      </div>
-    </div>
-  );
+function severityChipClass(severity) {
+  const s = String(severity || '').toLowerCase();
+  if (s.startsWith('crit')) return 'bg-error text-white';
+  if (s.startsWith('high')) return 'bg-[#e67e22] text-white';
+  if (s.startsWith('med')) return 'bg-[#d4a017] text-[#1a1400]';
+  return 'bg-primary-container/80 text-on-primary-container';
 }
 
 function IssueList({ findings, onOpen, usingLive }) {
   if (!findings.length) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-space-xl text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-space-xl text-center">
         <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
+        <p className="font-headline-sm text-headline-sm text-on-surface">No issues found</p>
         <p className="font-body-sm text-body-sm text-on-surface-variant">
-          {usingLive ? 'Live scan returned no issues.' : 'No findings in demo fallback tree.'}
+          {usingLive
+            ? 'No open findings after re-check (applied fixes cleared matching issues).'
+            : 'No scan loaded — start or open an audit to see findings.'}
         </p>
       </div>
     );
   }
   return (
-    <div className="flex-1 overflow-auto p-space-md">
+    <div className="min-h-0 flex-1 overflow-auto p-space-md">
       <ul className="flex flex-col gap-1">
         {findings.map((iss) => (
           <li key={`${iss.path}:${iss.line}:${iss.id || iss.title}`}>
@@ -549,11 +1477,19 @@ function IssueList({ findings, onOpen, usingLive }) {
                 <span className="font-label-md text-label-md font-semibold text-on-surface">
                   {iss.title}
                 </span>
-                <span className="font-label-sm text-label-sm text-error">{iss.cwe}</span>
+                <span className="flex items-center gap-1">
+                  {iss.severity ? (
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-label-sm text-label-sm font-bold uppercase ${severityChipClass(iss.severity)}`}
+                    >
+                      {iss.severity}
+                    </span>
+                  ) : null}
+                  <span className="font-label-sm text-label-sm text-outline">{iss.cwe}</span>
+                </span>
               </div>
               <span className="font-code-compact text-code-compact text-outline">
                 {iss.path}:{iss.line}
-                {iss.severity ? ` · ${iss.severity}` : ''}
               </span>
               <span className="font-body-sm text-body-sm text-on-surface-variant">{iss.summary}</span>
             </button>
@@ -564,104 +1500,3 @@ function IssueList({ findings, onOpen, usingLive }) {
   );
 }
 
-function PartialList({ items, onOpen, demo }) {
-  return (
-    <div className="flex-1 overflow-auto p-space-md">
-      {demo ? (
-        <p className="mb-2 font-label-sm text-label-sm text-outline">Demo fallback partials (no live list)</p>
-      ) : null}
-      <ul className="flex flex-col gap-1">
-        {items.map((p) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              onClick={() => onOpen(p.file)}
-              className="flex w-full flex-col gap-0.5 rounded bg-surface-container-low px-3 py-2 text-left hover:bg-surface-container"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-label-md text-label-md font-semibold text-on-surface">
-                  {p.description}
-                </span>
-                <span className="font-label-sm text-label-sm text-secondary">{p.risk}</span>
-              </div>
-              <span className="font-code-compact text-code-compact text-outline">
-                {p.file}:{p.line} · {p.type} · ~{p.effort}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function DepsList({ items, onOpen, usingLive }) {
-  if (!items.length) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-space-xl text-center">
-        <span className="material-symbols-outlined text-[28px] text-tertiary">verified</span>
-        <p className="font-body-sm text-body-sm text-on-surface-variant">
-          {usingLive ? 'No vulnerable dependencies in this scan.' : 'No CVE findings in demo fallback.'}
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="flex-1 overflow-auto p-space-md">
-      <ul className="flex flex-col gap-1">
-        {items.map((d) => (
-          <li key={`${d.path}:${d.cwe}`}>
-            <button
-              type="button"
-              onClick={() => (d.package ? undefined : onOpen(d.path))}
-              className="flex w-full flex-col gap-0.5 rounded bg-surface-container-low px-3 py-2 text-left hover:bg-surface-container"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-label-md text-label-md font-semibold text-on-surface">{d.title}</span>
-                <span className="font-label-sm text-label-sm text-error">{d.cwe}</span>
-              </div>
-              <span className="font-code-compact text-code-compact text-outline">
-                {d.path}:{d.line}
-              </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">{d.summary}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function TrendPanel({ points, demo }) {
-  return (
-    <div className="flex flex-1 flex-col gap-space-md overflow-auto p-space-xl">
-      <div>
-        <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">Trend history</h2>
-        <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-          {demo
-            ? 'Demo trend points — live scores appear after multiple scans.'
-            : 'Recent audit health scores from the scan list.'}
-        </p>
-      </div>
-      <ul className="flex flex-col gap-2">
-        {points.map((p) => (
-          <li
-            key={p.label}
-            className="flex flex-wrap items-center justify-between gap-2 rounded border border-outline-variant/25 bg-surface-container-low px-3 py-3"
-          >
-            <span className="font-label-md text-label-md font-semibold text-on-surface">{p.label}</span>
-            <span className="font-code-compact text-code-compact text-on-surface-variant">
-              score {p.score} · C{p.critical} H{p.high} M{p.medium}
-            </span>
-            <div className="h-1.5 w-full overflow-hidden rounded bg-surface-container-highest">
-              <div
-                className="h-full bg-primary-container"
-                style={{ width: `${Math.min(100, p.score)}%` }}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { useEyra } from '../context/EyraContext';
+import { isDemoProjectName, rejectDemoProjects } from '../lib/demoProjects.js';
 
-const PROJECTS = [
-  { id: 'backend-api', label: 'backend-api', env: 'prod' },
-  { id: 'payments-svc', label: 'payments-svc', env: 'staging' },
-  { id: 'auth-gateway', label: 'auth-gateway', env: 'prod' },
-];
+/** Header project menu stays empty of demo/sample leftovers. */
+const EMPTY_PROJECT = { id: '', label: 'No project', env: '—' };
+const PROJECTS = [EMPTY_PROJECT];
 
 /**
  * Header search (⌘K), notifications drawer, project + account menus.
@@ -26,12 +26,140 @@ export function ShellOverlays({
   searchInputRef,
 }) {
   const navigate = useNavigate();
-  const { mode, setMode, setAuditView, status, notifications, markNotificationsRead, showToast } =
-    useEyra();
+  const { logout } = useAuth();
+  const {
+    mode,
+    setMode,
+    setAuditView,
+    status,
+    notifications,
+    markNotificationsRead,
+    showToast,
+    adoptScan,
+    refreshScanList,
+  } = useEyra();
   const [query, setQuery] = useState('');
   const [historyHits, setHistoryHits] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [liveProjects, setLiveProjects] = useState([]);
+  const [switching, setSwitching] = useState(false);
   const panelRef = useRef(null);
+
+  function whenMs(iso) {
+    const t = new Date(iso || 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  /** Select sidebar project → load matching audit scan into all audit tabs. */
+  async function selectProject(p) {
+    if (!p?.id) {
+      setProject?.(EMPTY_PROJECT);
+      setProjectOpen(false);
+      return;
+    }
+    setProject?.(p);
+    setProjectOpen(false);
+
+    if (p.env === 'runtime') {
+      setMode('runtime');
+      navigate('/history');
+      showToast?.(`Runtime project: ${p.label}`, 'info');
+      return;
+    }
+
+    setSwitching(true);
+    try {
+      setMode('audit');
+      let scans = [];
+      try {
+        scans = (await refreshScanList()) || [];
+      } catch {
+        const data = await api.listScans();
+        scans = Array.isArray(data) ? data : data?.scans || [];
+      }
+      const key = String(p.label || p.id).toLowerCase();
+      const matches = scans
+        .filter((s) => String(s.projectName || s.archiveName || '').toLowerCase() === key)
+        .sort(
+          (a, b) =>
+            whenMs(b.completedAt || b.updatedAt || b.createdAt) -
+            whenMs(a.completedAt || a.updatedAt || a.createdAt),
+        );
+      const hit = matches[0];
+      if (!hit?.id) {
+        setAuditView('ingest');
+        showToast?.(`No audit scan for ${p.label} — ingest a ZIP/repo first`, 'error');
+        return;
+      }
+      let scan = hit;
+      try {
+        const data = await api.getScan(hit.id);
+        scan = data?.scan || data || hit;
+      } catch {
+        /* use list summary */
+      }
+      adoptScan(scan, { notify: false });
+      const st = String(scan.status || '').toLowerCase();
+      if (st === 'completed') setAuditView('overview');
+      else if (st === 'analyzing' || st === 'running' || st === 'scanning') setAuditView('progress');
+      else if (st === 'pending' || st === 'queued') setAuditView('ingest');
+      else setAuditView('overview');
+      showToast?.(
+        `Loaded ${scan.projectName || p.label} · ${String(scan.id || '').slice(0, 8)}`,
+        'info',
+      );
+    } catch (err) {
+      showToast?.(err.message || 'Failed to load project scan', 'error');
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  // Header project list: never surface demo / sample / upload-test names.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const byName = new Map();
+      try {
+        const scans = await api.listScans();
+        const list = Array.isArray(scans) ? scans : scans?.scans || [];
+        for (const s of list) {
+          const name = s.projectName || s.archiveName;
+          if (!name || isDemoProjectName(name)) continue;
+          byName.set(String(name).toLowerCase(), { id: name, label: name, env: 'audit' });
+        }
+      } catch {
+        /* offline */
+      }
+      try {
+        const hist = await api.history({ limit: 40 });
+        for (const item of hist?.items || []) {
+          const name = item.project_name;
+          if (!name || isDemoProjectName(name)) continue;
+          if (!byName.has(String(name).toLowerCase())) {
+            byName.set(String(name).toLowerCase(), {
+              id: name,
+              label: name,
+              env: 'runtime',
+            });
+          }
+        }
+      } catch {
+        /* offline */
+      }
+      if (!cancelled) setLiveProjects(rejectDemoProjects([...byName.values()]));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status?.healthy, mode]);
+
+  // If header still shows a demo selection, reset to empty.
+  useEffect(() => {
+    if (project && isDemoProjectName(project.label || project.id)) {
+      setProject?.(EMPTY_PROJECT);
+    }
+  }, [project, setProject]);
 
   const unread = useMemo(
     () => (notifications || []).filter((n) => !n.read).length,
@@ -97,7 +225,7 @@ export function ShellOverlays({
         ]
       : [
           { label: 'Debugging Workspace', action: () => navigate('/workspace') },
-          { label: 'Analysis Results', action: () => navigate('/analysis') },
+          { label: 'Code Performance & Test Analysis', action: () => navigate('/analysis') },
           { label: 'Investigation History', action: () => navigate('/history') },
           { label: 'Memory', action: () => navigate('/memory') },
         ];
@@ -249,24 +377,32 @@ export function ShellOverlays({
         </div>
       ) : null}
 
-      {/* Project menu */}
+      {/* Project menu — anchored under sidebar selector (not the top header) */}
       {projectOpen ? (
-        <div className="fixed left-[15.5rem] top-14 z-[70] w-56 overflow-hidden rounded border border-outline-variant/40 bg-surface-container-lowest shadow-xl lg:left-[16.5rem]">
-          {PROJECTS.map((p) => (
+        <div
+          id="eyra-project-menu"
+          role="listbox"
+          className="fixed left-3 top-[4.75rem] z-[70] w-[13.5rem] overflow-hidden rounded border border-outline-variant/40 bg-surface-container-lowest shadow-xl"
+        >
+          {switching ? (
+            <div className="px-3 py-3 font-body-sm text-body-sm text-outline">Loading scan…</div>
+          ) : null}
+          {(liveProjects.length ? liveProjects : [EMPTY_PROJECT]).map((p) => (
             <button
-              key={p.id}
+              key={p.id || 'empty'}
               type="button"
-              onClick={() => {
-                setProject(p);
-                setProjectOpen(false);
-                showToast?.(`Switched project to ${p.label}`, 'info');
-              }}
-              className={`flex w-full items-center justify-between px-3 py-2 text-left font-code-compact text-code-compact hover:bg-surface-container ${
+              role="option"
+              disabled={switching || (!p.id && liveProjects.length > 0)}
+              aria-selected={project.id === p.id}
+              onClick={() => selectProject(p)}
+              className={`flex w-full items-center justify-between px-3 py-2 text-left font-code-compact text-code-compact hover:bg-surface-container disabled:cursor-default disabled:opacity-70 ${
                 project.id === p.id ? 'text-primary' : 'text-on-surface'
               }`}
             >
-              <span>{p.label}</span>
-              <span className="text-outline">{p.env}</span>
+              <span className="truncate">{p.label}</span>
+              {p.env && p.env !== '—' ? (
+                <span className="shrink-0 text-outline">{p.env}</span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -279,31 +415,8 @@ export function ShellOverlays({
             type="button"
             onClick={() => {
               setAccountOpen(false);
-              if (mode === 'audit') setAuditView('config');
-              else navigate('/config');
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left font-body-sm text-body-sm text-on-surface hover:bg-surface-container"
-          >
-            <span className="material-symbols-outlined text-[16px]">settings</span>
-            Configuration
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAccountOpen(false);
-              setMode('runtime');
-              navigate('/history');
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left font-body-sm text-body-sm text-on-surface hover:bg-surface-container"
-          >
-            <span className="material-symbols-outlined text-[16px]">history</span>
-            My sessions
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAccountOpen(false);
-              showToast?.('Signed out locally (demo)', 'info');
+              logout();
+              navigate('/login', { replace: true });
             }}
             className="flex w-full items-center gap-2 px-3 py-2 text-left font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container"
           >

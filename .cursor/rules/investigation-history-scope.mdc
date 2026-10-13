@@ -1,0 +1,11 @@
+---
+description: Investigation History is mode-scoped (audit = ZIP/GitHub scans only)
+alwaysApply: true
+---
+
+# Investigation History scope
+
+- In **Codebase Audit** mode (`mode === 'audit'`), Investigation History shows **only** past codebase audits from ZIP uploads and GitHub repo ingest — never runtime debugging sessions.
+- In **Runtime Debugging** mode, History shows runtime sessions only.
+- Do **not** show the All / Runtime Debugging / Codebase Audit filter tabs beside the search box; mode already scopes the list.
+- Keep table chrome (headers); empty state when no matching past scans/sessions.

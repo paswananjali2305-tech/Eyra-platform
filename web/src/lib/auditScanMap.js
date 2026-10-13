@@ -1,19 +1,21 @@
+import { languageLabelFromPath } from './auditLanguages.js';
+
 /**
  * Map Eyraaaa scan payloads into AuditCodeWorkspace shapes.
- * Preserves mockRepo as fallback when scan data is absent.
+ * No demo/mockRepo fallback — empty workspace when scan data is absent.
  */
-
-import { DEFAULT_OPEN_FOLDERS, FILE_CONTENTS, REPO_TREE } from '../data/mockRepo.js';
 
 function extLang(path) {
   const ext = (path.split('.').pop() || '').toLowerCase();
-  if (ext === 'py') return 'Python 3.11';
-  if (ext === 'js' || ext === 'mjs' || ext === 'cjs') return 'JavaScript';
-  if (ext === 'ts' || ext === 'tsx') return 'TypeScript';
   if (ext === 'json') return 'JSON';
   if (ext === 'md') return 'Markdown';
-  if (ext === 'txt') return 'Text';
-  return 'Text';
+  if (ext === 'txt' || ext === 'toml' || ext === 'ini' || ext === 'cfg') return 'Text';
+  if (ext === 'yml' || ext === 'yaml') return 'YAML';
+  if (ext === 'css' || ext === 'scss') return 'CSS';
+  if (ext === 'html' || ext === 'htm') return 'HTML';
+  if (ext === 'sql') return 'SQL';
+  if (ext === 'sh' || ext === 'bash') return 'Shell';
+  return languageLabelFromPath(path);
 }
 
 function textToLines(text, highlightLine) {
@@ -37,13 +39,15 @@ export function mapIssueToFinding(issue) {
     column: issue.column != null ? Number(issue.column) : null,
     cwe: issue.ruleId || issue.type || sev,
     summary: issue.aiExplanation || issue.description || issue.suggestion || '',
-    impact: issue.description || issue.suggestion || issue.aiExplanation || '',
-    patch: issue.patchDiff || '',
+    impact: issue.description || issue.aiExplanation || issue.suggestion || '',
+    suggestion: issue.suggestion || issue.aiExplanation || '',
+    patch: issue.patchDiff || issue.patch || '',
     severity: sev,
     ruleId: issue.ruleId,
     type: issue.type,
     snippet: issue.snippet || '',
     id: issue.id,
+    file: issue.file || '',
   };
 }
 
@@ -141,74 +145,102 @@ export function buildRepoTreeFromPaths(paths, rootName = 'codebase') {
   return root;
 }
 
+function sevBucket(severity) {
+  const s = String(severity || '').toLowerCase();
+  if (s.startsWith('crit')) return 'critical';
+  if (s.startsWith('high')) return 'high';
+  if (s.startsWith('med')) return 'medium';
+  if (s.startsWith('low') || s.startsWith('info')) return 'low';
+  return 'medium';
+}
+
+/** Color tones for tree badges — critical red, high orange, medium amber, low blue. */
+function badgeFromCounts(counts) {
+  const badges = [];
+  if (counts.critical > 0) {
+    badges.push({ label: String(counts.critical), tone: 'critical', title: `${counts.critical} critical` });
+  }
+  if (counts.high > 0) {
+    badges.push({ label: String(counts.high), tone: 'high', title: `${counts.high} high` });
+  }
+  if (counts.medium > 0) {
+    badges.push({ label: String(counts.medium), tone: 'medium', title: `${counts.medium} medium` });
+  }
+  if (counts.low > 0) {
+    badges.push({ label: String(counts.low), tone: 'low', title: `${counts.low} low` });
+  }
+  return badges;
+}
+
+function emptyCounts() {
+  return { critical: 0, high: 0, medium: 0, low: 0 };
+}
+
+function addCounts(a, b) {
+  return {
+    critical: a.critical + b.critical,
+    high: a.high + b.high,
+    medium: a.medium + b.medium,
+    low: a.low + b.low,
+  };
+}
+
+function worstSeverity(counts) {
+  if (counts.critical > 0) return 'critical';
+  if (counts.high > 0) return 'high';
+  if (counts.medium > 0) return 'medium';
+  if (counts.low > 0) return 'low';
+  return null;
+}
+
 /**
- * Annotate tree file nodes with severity badges from findings.
+ * Annotate tree file + folder nodes with color-coded issue counts.
+ * e.g. red "2" = 2 critical, amber "3" = 3 medium (folders roll up children).
  */
 export function annotateTreeSeverity(tree, fileContents) {
   if (!tree || !fileContents) return tree;
 
-  function walk(node) {
-    if (node.type === 'file') {
-      const f = fileContents[node.id];
-      const sev = f?.finding?.severity;
-      if (sev) {
-        node.severity = String(sev).toLowerCase();
-        const letter = String(sev)[0]?.toUpperCase() || 'I';
-        node.badges = [{ label: `1${letter}`, tone: /critical/i.test(sev) ? 'error' : 'secondary' }];
-      }
-      return;
+  function fileCounts(path) {
+    const f = fileContents[path];
+    const counts = emptyCounts();
+    const list =
+      Array.isArray(f?.allFindings) && f.allFindings.length
+        ? f.allFindings
+        : f?.finding
+          ? [f.finding]
+          : [];
+    for (const iss of list) {
+      counts[sevBucket(iss.severity)] += 1;
     }
-    (node.children || []).forEach(walk);
+    return counts;
   }
+
+  function walk(node) {
+    if (!node?.type) return emptyCounts();
+    if (node.type === 'file') {
+      const counts = fileCounts(node.id);
+      node.issueCounts = counts;
+      node.severity = worstSeverity(counts);
+      node.badges = badgeFromCounts(counts);
+      return counts;
+    }
+    let total = emptyCounts();
+    for (const child of node.children || []) {
+      total = addCounts(total, walk(child));
+    }
+    node.issueCounts = total;
+    node.severity = worstSeverity(total);
+    node.badges = badgeFromCounts(total);
+    return total;
+  }
+
   const clone = JSON.parse(JSON.stringify(tree));
   walk(clone);
   return clone;
 }
 
-export function mapPartials(scan) {
-  const list = scan?.partialFeatures || [];
-  if (!list.length) return null;
-  return list.map((p, i) => ({
-    id: p.id || `pf-${i}`,
-    file: (p.file || '').replace(/\\/g, '/'),
-    line: p.line ?? 0,
-    type: p.type || 'TODO',
-    risk: p.risk || 'Medium',
-    effort: p.estimatedEffortHours != null ? `${p.estimatedEffortHours}h` : p.effort || '?',
-    description: p.featureDescription || p.description || p.type || 'Partial feature',
-  }));
-}
-
-export function mapDependencies(scan) {
-  const list = scan?.dependencies || [];
-  if (!list.length) return null;
-  return list.map((d, i) => ({
-    path: d.package || d.file || `dependency-${i}`,
-    line: 1,
-    title: `${d.package || 'package'} ${d.cve || ''}`.trim(),
-    cwe: d.cve || 'CVE',
-    summary: `${d.severity || ''} · installed ${d.installedVersion || '?'} → patch ${d.patchedVersion || '?'}`,
-    severity: d.severity,
-    package: d.package,
-  }));
-}
-
-export function mapTrendsFromScans(scans) {
-  if (!scans?.length) return null;
-  return scans.slice(0, 4).map((s, i) => {
-    const sev = s.summary?.severity || {};
-    return {
-      label: i === 0 ? 'Latest' : s.projectName || s.createdAt || `Scan ${i + 1}`,
-      critical: sev.Critical || 0,
-      high: sev.High || 0,
-      medium: sev.Medium || 0,
-      score: s.summary?.healthScore ?? 0,
-    };
-  });
-}
-
 /**
- * Resolve workspace data: live scan preferred, mockRepo fallback.
+ * Resolve workspace data from a live scan only (no mockRepo).
  * @param {object|null} scan
  */
 export function resolveAuditWorkspace(scan) {
@@ -218,16 +250,14 @@ export function resolveAuditWorkspace(scan) {
   if (!usingLive) {
     return {
       usingLive: false,
-      fileContents: FILE_CONTENTS,
-      repoTree: REPO_TREE,
-      defaultFolders: DEFAULT_OPEN_FOLDERS,
-      projectLabel: 'backend-api (demo fallback)',
-      findings: Object.entries(FILE_CONTENTS)
-        .filter(([, f]) => f?.finding)
-        .map(([path, f]) => ({ path, ...f.finding, language: f.language })),
-      partials: null,
-      dependencies: null,
-      summary: null,
+      fileContents: {},
+      repoTree: null,
+      defaultFolders: [],
+      projectLabel: scan?.id
+        ? `${scan.projectName || 'codebase'} · no files yet`
+        : 'No active scan',
+      findings: [],
+      summary: scan?.summary || null,
     };
   }
 
@@ -235,9 +265,19 @@ export function resolveAuditWorkspace(scan) {
   let tree = buildRepoTreeFromPaths(paths, scan.projectName || 'codebase');
   tree = annotateTreeSeverity(tree, liveFiles);
 
-  const findings = Object.entries(liveFiles)
-    .filter(([, f]) => f?.finding)
-    .map(([path, f]) => ({ path, ...f.finding, language: f.language }));
+  // Flatten every finding (not just the primary per file)
+  const findings = [];
+  for (const [path, f] of Object.entries(liveFiles)) {
+    const list =
+      Array.isArray(f?.allFindings) && f.allFindings.length
+        ? f.allFindings
+        : f?.finding
+          ? [{ path, ...f.finding }]
+          : [];
+    for (const iss of list) {
+      findings.push({ ...iss, language: f.language, path: iss.path || path });
+    }
+  }
 
   const folders = [];
   (function walk(node) {
@@ -255,8 +295,6 @@ export function resolveAuditWorkspace(scan) {
     defaultFolders: folders,
     projectLabel: `${scan.projectName || 'codebase'} · ${String(scan.id || '').slice(0, 8)}`,
     findings,
-    partials: mapPartials(scan),
-    dependencies: mapDependencies(scan),
     summary: scan.summary || null,
   };
 }

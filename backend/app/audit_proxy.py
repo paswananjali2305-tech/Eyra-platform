@@ -14,7 +14,8 @@ def audit_base() -> str:
 
 async def proxy_json(method: str, path: str, **kwargs) -> Response:
     url = f"{audit_base()}{path}"
-    timeout = httpx.Timeout(120.0, connect=5.0)
+    # GitHub shallow-clone can approach 2 minutes; keep headroom over Eyraaaa git timeout
+    timeout = httpx.Timeout(180.0, connect=10.0)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             res = await client.request(method, url, **kwargs)

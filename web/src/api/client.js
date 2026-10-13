@@ -42,8 +42,30 @@
  */
 
 const STORAGE_KEY = 'eyra.backendBaseUrl';
+const TOKEN_KEY = 'eyra.authToken';
 const DEFAULT_BASE = import.meta.env.VITE_EYRA_API_BASE || 'http://127.0.0.1:8000';
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+export function getAuthToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setAuthToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, String(token));
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearAuthToken() {
+  setAuthToken('');
+}
 
 export function getBaseUrl() {
   try {
@@ -77,10 +99,11 @@ export class ApiError extends Error {
  * @param {RequestInit & { timeoutMs?: number }} [options]
  */
 async function request(path, options = {}) {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...init } = options;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, auth = true, ...init } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const url = `${getBaseUrl()}${path}`;
+  const token = auth ? getAuthToken() : '';
 
   try {
     const res = await fetch(url, {
@@ -89,6 +112,7 @@ async function request(path, options = {}) {
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init.headers || {}),
       },
     });
@@ -104,12 +128,18 @@ async function request(path, options = {}) {
     }
 
     if (!res.ok) {
-      const detail =
-        typeof data === 'object' && data && 'detail' in data
-          ? typeof data.detail === 'string'
-            ? data.detail
-            : JSON.stringify(data.detail)
-          : `HTTP ${res.status}`;
+      let detail = `HTTP ${res.status}`;
+      if (data && typeof data === 'object') {
+        if ('detail' in data) {
+          detail =
+            typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+        } else if (typeof data.error === 'string' && data.error.trim()) {
+          // Eyraaaa audit engine uses { error: "..." }
+          detail = data.error;
+        } else if (typeof data.message === 'string' && data.message.trim()) {
+          detail = data.message;
+        }
+      }
       throw new ApiError(detail, res.status, data);
     }
 
@@ -131,11 +161,42 @@ async function request(path, options = {}) {
 export const api = {
   /** @returns {Promise<{status:string,service:string,version:string}>} */
   health() {
-    return request('/api/health', { timeoutMs: 5000 });
+    return request('/api/health', { timeoutMs: 5000, auth: false });
   },
 
   status() {
     return request('/api/status', { timeoutMs: 8000 });
+  },
+
+  /**
+   * @param {{email:string,username:string,password:string,display_name?:string}} body
+   * @returns {Promise<{access_token:string,token_type:string,user:object}>}
+   */
+  register(body) {
+    return request('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 20_000,
+      auth: false,
+    });
+  },
+
+  /**
+   * @param {{login:string,password:string}} body
+   * @returns {Promise<{access_token:string,token_type:string,user:object}>}
+   */
+  login(body) {
+    return request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 20_000,
+      auth: false,
+    });
+  },
+
+  /** @returns {Promise<{id:string,email:string,username:string,display_name:string}>} */
+  me() {
+    return request('/api/auth/me', { timeoutMs: 10_000 });
   },
 
   /**
@@ -191,16 +252,30 @@ export const api = {
     });
   },
 
+  /**
+   * Detect LLM provider from API key and return tagged model list.
+   * @param {{ api_key?: string, provider?: string }} [body]
+   */
+  llmModels(body = {}) {
+    return request('/api/config/llm-models', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 20_000,
+    });
+  },
+
   auditHealth() {
     return request('/api/audit/health', { timeoutMs: 5000 });
   },
 
-  loadSample(sampleId) {
-    return request('/api/audit/upload', {
-      method: 'POST',
-      body: JSON.stringify({ sampleId }),
-      timeoutMs: 60_000,
-    });
+  /** @deprecated Samples removed — use uploadZip or uploadGithub. */
+  loadSample() {
+    return Promise.reject(
+      new ApiError(
+        'Built-in samples were removed. Upload a ZIP or Configure & Index a public GitHub repo.',
+        410,
+      ),
+    );
   },
 
   /**
@@ -233,6 +308,8 @@ export const api = {
       const xhr = new XMLHttpRequest();
       const url = `${getBaseUrl()}/api/audit/upload`;
       xhr.open('POST', url);
+      const token = getAuthToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.timeout = 120_000;
       xhr.responseType = 'text';
       xhr.upload.onprogress = (ev) => {
@@ -265,41 +342,152 @@ export const api = {
   },
 
   /**
-   * Eyraaaa GitHub path is mock-only (loads NovaPay sample). Prefer labeling in UI.
+   * Shallow-clone a public GitHub repo via Eyraaaa (requires git on the audit engine host).
    * @param {string} repoUrl
+   * @param {{ branch?: string }} [opts]
    */
-  uploadGithubMock(repoUrl) {
+  uploadGithub(repoUrl, opts = {}) {
     return request('/api/audit/upload', {
       method: 'POST',
-      body: JSON.stringify({ repoUrl }),
-      timeoutMs: 60_000,
+      body: JSON.stringify({
+        repoUrl,
+        ...(opts.branch ? { branch: opts.branch } : {}),
+      }),
+      timeoutMs: 180_000,
     });
   },
 
-  startScan(scanId) {
+  /** @deprecated use uploadGithub — kept for older call sites */
+  uploadGithubMock(repoUrl, opts = {}) {
+    return this.uploadGithub(repoUrl, opts);
+  },
+
+  /**
+   * List branches for a public GitHub repo (GitHub REST API, browser-side).
+   * @param {string} owner
+   * @param {string} repo
+   * @returns {Promise<{ branches: string[], defaultBranch: string|null }>}
+   */
+  async listGithubBranches(owner, repo) {
+    const o = encodeURIComponent(owner);
+    const r = encodeURIComponent(repo.replace(/\.git$/i, ''));
+    const headers = { Accept: 'application/vnd.github+json' };
+
+    let defaultBranch = null;
+    try {
+      const metaRes = await fetch(`https://api.github.com/repos/${o}/${r}`, { headers });
+      if (metaRes.ok) {
+        const meta = await metaRes.json();
+        defaultBranch = meta?.default_branch || null;
+      } else if (metaRes.status === 404) {
+        throw new ApiError('Repository not found (is it public?)', 404);
+      } else if (metaRes.status === 403) {
+        throw new ApiError('GitHub rate limit — try again shortly', 403);
+      }
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(err?.message || 'Failed to reach GitHub', 0);
+    }
+
+    const branches = [];
+    for (let page = 1; page <= 5; page += 1) {
+      const res = await fetch(
+        `https://api.github.com/repos/${o}/${r}/branches?per_page=100&page=${page}`,
+        { headers },
+      );
+      if (!res.ok) {
+        if (res.status === 404) throw new ApiError('Repository not found (is it public?)', 404);
+        if (res.status === 403) throw new ApiError('GitHub rate limit — try again shortly', 403);
+        throw new ApiError(`GitHub branches failed (${res.status})`, res.status);
+      }
+      const batch = await res.json();
+      if (!Array.isArray(batch) || batch.length === 0) break;
+      for (const b of batch) {
+        if (b?.name) branches.push(String(b.name));
+      }
+      if (batch.length < 100) break;
+    }
+
+    if (!defaultBranch && branches.length) {
+      defaultBranch = branches.includes('main')
+        ? 'main'
+        : branches.includes('master')
+          ? 'master'
+          : branches[0];
+    }
+
+    return { branches, defaultBranch };
+  },
+
+  /**
+   * @param {string} scanId
+   * @param {{ engines?: { ast?: boolean, cve?: boolean, partials?: boolean, ai?: boolean, offline?: boolean } }} [opts]
+   */
+  startScan(scanId, opts = {}) {
     return request(`/api/audit/scan/${encodeURIComponent(scanId)}/start`, {
       method: 'POST',
+      body: JSON.stringify({
+        engines: opts.engines || {},
+      }),
+    });
+  },
+
+  /** Stop an in-flight or pending scan; stays cancelled until restarted. */
+  cancelScan(scanId) {
+    return request(`/api/audit/scan/${encodeURIComponent(scanId)}/cancel`, {
+      method: 'POST',
       body: JSON.stringify({}),
+      timeoutMs: 15_000,
     });
   },
 
   getScan(scanId) {
-    return request(`/api/audit/scan/${encodeURIComponent(scanId)}`);
+    // Keep restore snappy — Eyraaaa 503/down must not block Code Audit for 60s.
+    return request(`/api/audit/scan/${encodeURIComponent(scanId)}`, {
+      timeoutMs: 12_000,
+    });
   },
 
   listScans() {
     return request('/api/audit/scans', { timeoutMs: 15_000 });
   },
 
+  /** Wipe persisted audit scans (History Clear Stale Cache). */
+  clearScans() {
+    return request('/api/audit/scans', {
+      method: 'DELETE',
+      timeoutMs: 15_000,
+    });
+  },
+
+  /** Wipe Brain investigation sessions (runtime History Clear Stale Cache). */
+  clearHistory() {
+    return request('/api/history', {
+      method: 'DELETE',
+      timeoutMs: 15_000,
+    });
+  },
+
   /**
-   * Download report (markdown|json). Returns Blob.
+   * Download report (markdown|json|csv). Returns Blob.
    * @param {string} scanId
-   * @param {'markdown'|'json'} [format]
+   * @param {'markdown'|'json'|'csv'} [format]
+   * @param {string[]} [resolvedKeys] optional solved finding keys
    */
-  async downloadReport(scanId, format = 'markdown') {
-    const qs = format === 'json' ? '?format=json' : '?format=markdown';
-    const url = `${getBaseUrl()}/api/audit/scan/${encodeURIComponent(scanId)}/report${qs}`;
-    const res = await fetch(url, { headers: { Accept: '*/*' } });
+  async downloadReport(scanId, format = 'markdown', resolvedKeys = null) {
+    const params = new URLSearchParams();
+    params.set('format', format === 'csv' || format === 'json' ? format : 'markdown');
+    if (Array.isArray(resolvedKeys) && resolvedKeys.length) {
+      params.set('resolvedKeys', JSON.stringify(resolvedKeys));
+    }
+    const url = `${getBaseUrl()}/api/audit/scan/${encodeURIComponent(scanId)}/report?${params}`;
+    const token = getAuthToken();
+    const res = await fetch(url, {
+      headers: {
+        Accept: '*/*',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
     if (!res.ok) {
       const text = await res.text();
       throw new ApiError(text || `Report HTTP ${res.status}`, res.status);
@@ -313,14 +501,65 @@ export const api = {
   },
 
   /**
-   * Sandboxed Python execute (Brain timeout + blocked network/process APIs).
+   * Multilingual sandbox execute (temp dir + timeout; language via runtime registry).
    * @param {{code:string, language?:string, file_name?:string}} body
    */
   execute(body) {
     return request('/api/execute', {
       method: 'POST',
       body: JSON.stringify(body),
-      timeoutMs: 15_000,
+      timeoutMs: 90_000,
+    });
+  },
+
+  /** Registered language adapters + host availability. */
+  runtimes() {
+    return request('/api/runtimes', { timeoutMs: 10_000 });
+  },
+
+  /**
+   * Performance / complexity analysis for editor buffer.
+   * @param {{code:string, language?:string, file_name?:string, target_time?:string, target_space?:string, goal?:string}} body
+   */
+  performanceAnalyze(body) {
+    return request('/api/performance/analyze', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 60_000,
+    });
+  },
+
+  /**
+   * Suggest optimized code toward target complexities.
+   * @param {{code:string, language?:string, file_name?:string, target_time?:string, target_space?:string, goal?:string}} body
+   */
+  performanceOptimize(body) {
+    return request('/api/performance/optimize', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 90_000,
+    });
+  },
+
+  /**
+   * @param {{code:string, language?:string, file_name?:string, function_name?:string}} body
+   */
+  performanceGenerateTests(body) {
+    return request('/api/performance/tests/generate', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 30_000,
+    });
+  },
+
+  /**
+   * @param {{code:string, language?:string, file_name?:string, cases?:object[], case_ids?:number[]}} body
+   */
+  performanceRunTests(body) {
+    return request('/api/performance/tests/run', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 120_000,
     });
   },
 };

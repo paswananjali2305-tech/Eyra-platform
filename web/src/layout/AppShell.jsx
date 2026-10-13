@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PROJECTS, ShellOverlays } from '../components/ShellOverlays.jsx';
+import { useAuth } from '../context/AuthContext';
 import { useEyra } from '../context/EyraContext';
 import { AuditOverviewPage } from '../pages/audit/AuditOverviewPage.jsx';
 import { AuditIngestPage } from '../pages/audit/AuditIngestPage.jsx';
@@ -12,7 +13,7 @@ import { ConfigPage } from '../pages/ConfigPage.jsx';
 const RUNTIME_NAV = [
   { to: '/', end: true, label: 'Overview' },
   { to: '/workspace', label: 'Debugging Workspace', badge: 'active' },
-  { to: '/analysis', label: 'Analysis Results' },
+  { to: '/analysis', label: 'Code Performance & Test Analysis' },
   { to: '/memory', label: 'Memory & Knowledge' },
   { to: '/history', label: 'Investigation History' },
   { to: '/config', label: 'Configuration & Projects' },
@@ -54,7 +55,9 @@ export function AppShell() {
     auditView,
     setAuditView,
     notifications,
+    activeScan,
   } = useEyra();
+  const { displayName, initials, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const backendOk = Boolean(status?.healthy);
@@ -62,12 +65,14 @@ export function AppShell() {
     () => (notifications || []).filter((n) => !n.read).length,
     [notifications],
   );
+  const accountLabel = displayName || user?.username || 'User';
+  const accountHandle = user?.username ? `@${user.username}` : 'Signed in';
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [project, setProject] = useState(PROJECTS[0]);
+  const [project, setProject] = useState(PROJECTS[0] || { id: '', label: 'No project', env: '—' });
   const searchInputRef = useRef(null);
   const headerSearchRef = useRef(null);
 
@@ -77,6 +82,16 @@ export function AppShell() {
         ? 'EYRA — Codebase Audit'
         : 'EYRA — Intelligent Runtime Debugging Agent';
   }, [mode]);
+
+  // Keep sidebar project label in sync with the active audit scan.
+  useEffect(() => {
+    const name = activeScan?.projectName || activeScan?.archiveName;
+    if (!name || mode !== 'audit') return;
+    setProject((prev) => {
+      if (prev?.label === name && prev?.env === 'audit') return prev;
+      return { id: name, label: name, env: 'audit' };
+    });
+  }, [mode, activeScan?.id, activeScan?.projectName, activeScan?.archiveName]);
 
   useEffect(() => {
     if (!location.pathname.startsWith('/audit')) return;
@@ -113,21 +128,30 @@ export function AppShell() {
             </div>
             <button
               type="button"
+              id="eyra-sidebar-project"
+              aria-haspopup="listbox"
+              aria-expanded={projectOpen}
               onClick={() => {
                 setProjectOpen((v) => !v);
                 setAccountOpen(false);
                 setNotifOpen(false);
               }}
-              className="mt-space-sm flex w-full cursor-pointer items-center justify-between rounded border border-outline-variant/30 bg-surface-container-low p-1.5 text-on-surface-variant transition-colors hover:border-outline hover:text-on-surface"
+              className="mt-space-sm flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded border border-outline-variant/30 bg-surface-container-low px-2 text-left text-on-surface-variant transition-colors hover:border-outline hover:text-on-surface"
             >
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="material-symbols-outlined shrink-0 text-[14px] text-primary">
                   deployed_code
                 </span>
-                <div className="truncate font-code-compact text-code-compact">
-                  <span className="text-outline">{project.env}/</span>
-                  {project.label}
-                </div>
+                <span className="truncate font-code-compact text-code-compact text-on-surface">
+                  {project.id && project.env && project.env !== '—' ? (
+                    <>
+                      <span className="text-outline">{project.env}/</span>
+                      {project.label}
+                    </>
+                  ) : (
+                    project.label || 'No project'
+                  )}
+                </span>
               </div>
               <span className="material-symbols-outlined shrink-0 text-[14px] text-outline">
                 unfold_more
@@ -166,7 +190,7 @@ export function AppShell() {
                       end={item.end === true}
                       className={({ isActive }) => navClass(isActive)}
                     >
-                      <span>{item.label}</span>
+                      <span className="min-w-0 leading-snug">{item.label}</span>
                       {item.badge === 'active' && activeResult ? (
                         <span className="rounded border border-tertiary/20 bg-tertiary-container/15 px-1.5 py-0.5 font-label-sm text-label-sm text-tertiary">
                           1 active
@@ -179,7 +203,8 @@ export function AppShell() {
         </div>
 
         <div className="flex flex-col gap-space-xs border-t border-outline-variant/30 bg-surface-container-lowest/80 p-space-sm">
-          <div className="flex flex-col gap-1 rounded border border-outline-variant/20 bg-surface-container-low p-1.5">
+          {/* Brain / Mode status pill — hidden per UI cleanup */}
+          <div className="hidden flex-col gap-1 rounded border border-outline-variant/20 bg-surface-container-low p-1.5">
             <div className="flex items-center justify-between font-code-compact text-code-compact text-on-surface-variant">
               <div className="flex items-center gap-1.5">
                 <span
@@ -212,14 +237,14 @@ export function AppShell() {
               className="flex min-w-0 flex-1 items-center gap-space-xs rounded px-1 py-0.5 text-left hover:bg-surface-container"
             >
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary font-label-sm text-label-sm font-semibold text-on-primary">
-                AD
+                {initials}
               </div>
               <div className="truncate">
                 <div className="truncate font-code-compact text-code-compact leading-tight text-on-surface">
-                  alex.dev
+                  {accountLabel}
                 </div>
                 <div className="truncate font-label-sm text-label-sm leading-tight text-outline">
-                  Staff Eng
+                  {accountHandle}
                 </div>
               </div>
             </button>
@@ -242,25 +267,10 @@ export function AppShell() {
       <div className="flex min-h-screen flex-col pl-60">
         <header className="fixed left-60 right-0 top-0 z-40 grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-space-sm border-b border-outline-variant/30 bg-surface-container-lowest/90 px-space-md backdrop-blur">
           <div className="flex min-w-0 items-center gap-space-sm justify-self-start">
-            <div className="hidden items-center gap-2 font-label-sm text-label-sm text-outline xl:flex">
+            <div className="hidden items-center gap-2 font-label-sm text-label-sm leading-none text-outline xl:flex">
               <span className="text-primary">EYRA</span>
               <span className="text-outline-variant">v1.0-unified</span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setProjectOpen((v) => !v);
-                setNotifOpen(false);
-                setAccountOpen(false);
-              }}
-              className="hidden max-w-[11rem] cursor-pointer items-center gap-1 truncate rounded border border-outline-variant/30 bg-surface-container-low px-2 py-0.5 font-code-compact text-code-compact text-on-surface transition-colors hover:border-outline lg:flex"
-            >
-              <span className="truncate">{project.label}</span>
-              <span className="shrink-0 text-outline">{project.env}</span>
-              <span className="material-symbols-outlined shrink-0 text-[12px] text-outline">
-                expand_more
-              </span>
-            </button>
           </div>
 
           <div className="flex shrink-0 items-center justify-self-center rounded bg-surface-container p-0.5">
@@ -337,11 +347,11 @@ export function AppShell() {
               className="flex shrink-0 items-center gap-1.5 rounded border border-outline-variant/30 bg-surface-container-low px-1.5 py-0.5 hover:bg-surface-container"
             >
               <div className="flex h-6 w-6 items-center justify-center rounded bg-primary font-label-sm text-label-sm font-semibold text-on-primary">
-                AD
+                {initials}
               </div>
               <div className="hidden font-code-compact text-code-compact leading-tight xl:block">
-                <div className="text-on-surface">alex.dev</div>
-                <div className="text-outline">Staff Eng</div>
+                <div className="text-on-surface">{accountLabel}</div>
+                <div className="text-outline">{accountHandle}</div>
               </div>
             </button>
           </div>
