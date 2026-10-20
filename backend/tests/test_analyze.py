@@ -12,14 +12,28 @@ os.environ["EYRA_DB_PATH"] = str(TEST_DB)
 os.environ["EYRA_ALLOW_LOCAL_FALLBACK"] = "true"
 os.environ["GROQ_API_KEY"] = ""
 
+from tests.conftest import use_test_db
 from app.main import app  # noqa: E402
 from app.database import init_db  # noqa: E402
 
 
 @pytest.fixture()
 def client():
+    use_test_db(TEST_DB)
+    if TEST_DB.exists():
+        TEST_DB.unlink()
     init_db()
     with TestClient(app) as c:
+        created = c.post(
+            "/api/auth/register",
+            json={
+                "email": "analyzer@example.com",
+                "username": "analyzer",
+                "password": "test-pass-1",
+            },
+        )
+        assert created.status_code == 200, created.text
+        c.headers["Authorization"] = f"Bearer {created.json()['access_token']}"
         yield c
 
 
@@ -62,6 +76,29 @@ def test_zero_division_analyze_and_history(client: TestClient):
     assert detail.status_code == 200
     assert detail.json()["session_id"] == session_id
     assert detail.json()["file_name"] == "test.py"
+    assert "session_id" in detail.json()
+    assert "status" in detail.json()
+    assert "suggested_correction" in detail.json()
+
+
+def test_missing_token_is_unauthorized():
+    use_test_db(TEST_DB)
+    if TEST_DB.exists():
+        TEST_DB.unlink()
+    init_db()
+    with TestClient(app) as c:
+        denied = c.post(
+            "/api/analyze",
+            json={
+                "file_name": "test.py",
+                "language": "python",
+                "code_snippet": "print(1)\n",
+                "terminal_output": "ok",
+            },
+        )
+        assert denied.status_code == 401
+        history = c.get("/api/history")
+        assert history.status_code == 401
 
 
 def test_invalid_empty_code(client: TestClient):

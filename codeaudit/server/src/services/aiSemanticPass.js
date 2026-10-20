@@ -1,54 +1,40 @@
 /**
- * AI Semantic Pass — prefers EYRA Brain audit model enrichment,
- * falls back to local heuristics if Brain/Groq is unavailable.
+ * AI Semantic Pass — prefers EYRA Brain audit model enrichment.
+ * The local fallback explains a finding. It does not invent a diff of code
+ * that is not in the file.
  */
+import { applyPatchGrounding } from './patchGrounding.js';
 
 const BRAIN_URL = (process.env.EYRA_BRAIN_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-function localHeuristicPass(issues, partialFeatures) {
+export function localHeuristicPass(issues) {
   for (const issue of issues.slice(0, 15)) {
-    let aiExplanation = '';
-    let patchDiff = '';
     const rule = issue.ruleId || '';
-
-    if (rule.includes('SQLI')) {
-      aiExplanation = `Semantic Analysis: The dynamic interpolation in '${issue.file}' creates an unchecked injection vector. An attacker can supply a malicious payload such as "1' OR '1'='1" to extract tables or bypass authentication filters.`;
-      patchDiff = `--- a/${issue.file}\n+++ b/${issue.file}\n@@ -${issue.line},3 +${issue.line},3 @@\n- db.execute(f"SELECT * FROM accounts WHERE id = '{user_id}'")\n+ db.execute("SELECT * FROM accounts WHERE id = %s", (user_id,))`;
-    } else if (rule.includes('AWS') || rule.includes('SECRET')) {
-      aiExplanation = `Semantic Analysis: Static hardcoding of sensitive credentials poses high blast-radius exposure. If checked into version control or CI/CD logs, access tokens can be scraped within minutes by automated scanners.`;
-      patchDiff = `--- a/${issue.file}\n+++ b/${issue.file}\n@@ -${issue.line},2 +${issue.line},2 @@\n- const API_KEY = "AKIA12345EXAMPLEKEY";\n+ const API_KEY = process.env.AWS_ACCESS_KEY_ID;`;
-    } else if (rule.includes('BUG-001') || (issue.title || '').includes('Default Argument')) {
-      aiExplanation = `Semantic Analysis: Python binds default arguments once at function definition time, not at invocation. Modifying a mutable list/dict modifies the exact object referenced across all future invocations.`;
-      patchDiff = `--- a/${issue.file}\n+++ b/${issue.file}\n@@ -${issue.line},4 +${issue.line},5 @@\n- def process_queue(items=[]):\n+ def process_queue(items=None):\n+     if items is None:\n+         items = []`;
-    } else if (rule.includes('BUG-002') || (issue.title || '').includes('Bare Except')) {
-      aiExplanation = `Semantic Analysis: Intercepting all base exceptions without discrimination blinds the application from graceful SIGINT or OS kill signals, leading to zombie background jobs and blocked threadpools.`;
-      patchDiff = `--- a/${issue.file}\n+++ b/${issue.file}\n@@ -${issue.line},2 +${issue.line},3 @@\n- except:\n-     pass\n+ except Exception as err:\n+     logger.error(f"Execution failed: {err}", exc_info=True)\n+     raise`;
-    } else if (rule.includes('DEEP-NESTING') || rule.includes('COMPLEXITY')) {
-      aiExplanation = `Semantic Analysis: Cognitive cyclomatic density is high. High branch nesting multiplies permutations required for full test coverage and leads to untested corner-case execution paths.`;
-      patchDiff = `--- a/${issue.file}\n+++ b/${issue.file}\n@@ -${issue.line},6 +${issue.line},5 @@\n- if condition:\n-     if valid:\n-         execute_job()\n+ if not condition or not valid:\n+     return\n+ execute_job()`;
-    } else {
-      aiExplanation = `Semantic Analysis: Static pattern detected potential failure point. Recommended best practice is to isolate input boundaries, enforce validation schemas, and ensure deterministic return types.`;
-      patchDiff = `--- a/${issue.file}\n+++ b/${issue.file}\n@@ -${issue.line},1 +${issue.line},1 @@\n// Auto-generated safety guard\n+ // Verify boundary constraints before proceeding`;
-    }
-
-    issue.aiExplanation = aiExplanation;
-    issue.patchDiff = patchDiff;
+    const title = issue.title || rule || 'finding';
+    const where = `${issue.file || 'unknown'}:${issue.line || '?'}`;
+    issue.aiExplanation =
+      `Heuristic note only (not a source patch): ${title} at ${where}. ` +
+      'Review the finding in the file before changing it. ' +
+      (rule ? `Rule ${rule}. ` : '') +
+      'No diff was generated because a template would not match this source.';
+    issue.patchDiff = '';
     issue.enrichmentSource = 'local_heuristic';
-    issue.patchState = issue.patchDiff ? 'generated' : 'none';
-    issue.patchProvenance = 'heuristic_template';
+    issue.patchState = 'none';
+    issue.patchProvenance = 'unavailable';
+    issue.patchApplicable = false;
+    issue.appliedToDisk = false;
+    issue.verification = 'not_run';
   }
 
   const architectureHealth = {
     riskRating: issues.some((i) => i.severity === 'Critical') ? 'High Risk' : 'Moderate Risk',
     recommendedNextSprint: [
-      'Eliminate exposed secrets from source and integrate AWS Secrets Manager / Doppler',
-      'Address unparameterized SQL statements to prevent catastrophic injection vulnerabilities',
-      'Resolve unimplemented TODO stubs in payment/auth controllers before production cutover',
-      'Add unit test suites for high-complexity service files lacking test coverage',
+      'Review Critical and High findings in the scanned files',
+      'Confirm any suggested change against the current source before editing',
     ],
     enrichmentSource: 'local_heuristic',
     enrichmentNote:
-      'Local heuristic explanations — not Brain LLM. Templates may not match the exact source line.',
+      'Local heuristic explanations only. No template diff was attached.',
   };
 
   return { issues, architectureHealth };
@@ -101,10 +87,10 @@ export async function runAiSemanticPass(issues, partialFeatures = [], files = []
       const hit = byId.get(issue.id);
       if (hit) {
         issue.aiExplanation = hit.aiExplanation;
-        issue.patchDiff = hit.patchDiff || issue.patchDiff || '';
+        issue.patchDiff = hit.patchDiff || '';
         issue.enrichmentSource = data.reasoning_source || 'brain';
-        issue.patchState = issue.patchDiff ? 'generated' : 'none';
-        issue.patchProvenance = 'brain_enrichment';
+        issue.patchProvenance = data.reasoning_source === 'groq' ? 'ai_generated' : 'unavailable';
+        applyPatchGrounding(issue, files);
         brainHits += 1;
       }
     }

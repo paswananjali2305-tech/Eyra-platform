@@ -94,6 +94,35 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_sessions_error
                 ON sessions(error_type);
 
+            CREATE TABLE IF NOT EXISTS run_samples (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_run_samples_user
+                ON run_samples(user_id);
+
+            CREATE TABLE IF NOT EXISTS extension_connect_codes (
+                code_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                expires_at INTEGER NOT NULL,
+                used_at INTEGER,
+                created_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS extension_credentials (
+                token_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                expires_at INTEGER NOT NULL,
+                revoked_at INTEGER,
+                created_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_extension_credentials_user
+                ON extension_credentials(user_id);
+
             CREATE TABLE IF NOT EXISTS app_config (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 project_name TEXT NOT NULL,
@@ -111,6 +140,7 @@ def init_db() -> None:
         # then seed the singleton row (INSERT must not run before engine_* columns exist).
         _ensure_app_config_engine_columns(conn)
         _ensure_sessions_user_id(conn)
+        _ensure_session_kind(conn)
         conn.execute(
             """
             INSERT OR IGNORE INTO app_config (
@@ -119,8 +149,7 @@ def init_db() -> None:
             ) VALUES (1, 'default', 90, 1, 'python', 1, 1, 1, 1)
             """
         )
-        # Drop phase-test / NovaPay / probe leftovers so History never shows seed junk.
-        _purge_probe_sessions(conn)
+        # Startup must not delete sessions by filename or project name.
 
 
 def _ensure_sessions_user_id(conn: sqlite3.Connection) -> None:
@@ -132,24 +161,16 @@ def _ensure_sessions_user_id(conn: sqlite3.Connection) -> None:
     )
 
 
-def _purge_probe_sessions(conn: sqlite3.Connection) -> int:
-    """Remove known non-user sessions from phase scripts and sample ingest."""
-    cur = conn.execute(
-        """
-        DELETE FROM sessions
-        WHERE lower(project_name) LIKE '%novapay%'
-           OR lower(file_name) IN (
-                'phase_c_probe.py',
-                'progress-query.txt',
-                't.py'
-           )
-           OR (
-                lower(project_name) IN ('default', 'runtime-workspace')
-                AND lower(file_name) IN ('test.py', 'snippet.py', 'demo.py')
-           )
-        """
-    )
-    return int(cur.rowcount or 0)
+def _ensure_session_kind(conn: sqlite3.Connection) -> None:
+    """user = normal investigation. internal_test is explicit and never inferred from a filename.
+
+    Legacy rows gain session_kind='user' via the column default. Nothing is deleted.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    if "session_kind" not in cols:
+        conn.execute(
+            "ALTER TABLE sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'user'"
+        )
 
 
 def clear_sessions(*, user_id: str | None = None) -> int:
@@ -258,7 +279,9 @@ def save_session(
     store_code: bool = True,
     *,
     user_id: str | None = None,
+    session_kind: str = "user",
 ) -> AnalyzeResponse:
+    kind = session_kind if session_kind in {"user", "internal_test"} else "user"
     code = result.code_snippet if store_code else "[redacted by privacy setting]"
     with get_connection() as conn:
         conn.execute(
@@ -268,8 +291,8 @@ def save_session(
                 stack_trace, error_type, error_summary, root_cause, explanation,
                 evidence_json, timeline_json, correction_json, verification_json,
                 related_json, reasoning_source, reasoning_note, status,
-                project_name, confidence, created_at, user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                project_name, confidence, created_at, user_id, session_kind
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result.session_id,
@@ -294,6 +317,7 @@ def save_session(
                 result.confidence,
                 result.created_at.isoformat(),
                 user_id,
+                kind,
             ),
         )
     return result
@@ -314,6 +338,8 @@ def list_sessions(
     if user_id:
         clauses.append("user_id = ?")
         params.append(user_id)
+    # Filename is never used to hide a session. Only an explicit internal_test mark is.
+    clauses.append("COALESCE(session_kind, 'user') != 'internal_test'")
     if q:
         clauses.append(
             "(error_type LIKE ? OR file_name LIKE ? OR root_cause LIKE ? OR error_summary LIKE ?)"
@@ -386,7 +412,11 @@ def get_session(
     with get_connection() as conn:
         if user_id:
             row = conn.execute(
-                "SELECT * FROM sessions WHERE session_id = ? AND user_id = ?",
+                """
+                SELECT * FROM sessions
+                WHERE session_id = ? AND user_id = ?
+                  AND COALESCE(session_kind, 'user') != 'internal_test'
+                """,
                 (session_id, user_id),
             ).fetchone()
         else:
@@ -425,6 +455,38 @@ def find_related(
             [*params, limit],
         ).fetchall()
     return [r["session_id"] for r in rows]
+
+
+def record_run_duration(user_id: str | None, duration_ms: int) -> None:
+    """Store one real sandbox run so overview can average execution time."""
+    if not user_id:
+        return
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO run_samples (user_id, duration_ms, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (user_id, max(0, int(duration_ms)), _utcnow().isoformat()),
+        )
+
+
+def execution_timing(*, user_id: str | None) -> dict[str, int | None]:
+    if not user_id:
+        return {"avg_execution_ms": None, "execution_count": 0}
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS c, AVG(duration_ms) AS avg_ms
+            FROM run_samples
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+    count = int(row["c"] or 0)
+    if count == 0 or row["avg_ms"] is None:
+        return {"avg_execution_ms": None, "execution_count": 0}
+    return {"avg_execution_ms": int(round(float(row["avg_ms"]))), "execution_count": count}
 
 
 def stats(*, user_id: str | None = None) -> dict[str, int]:

@@ -1,0 +1,1 @@
+export { showAnalysisPanel } from './investigationPanel';

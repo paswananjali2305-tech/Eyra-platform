@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PROJECTS, ShellOverlays } from '../components/ShellOverlays.jsx';
 import { useAuth } from '../context/AuthContext';
 import { useEyra } from '../context/EyraContext';
+import { api } from '../api/client.js';
+import { launchOpenExtension } from '../lib/openExtension.js';
 import { AuditOverviewPage } from '../pages/audit/AuditOverviewPage.jsx';
 import { AuditIngestPage } from '../pages/audit/AuditIngestPage.jsx';
 import { AuditProgressPage } from '../pages/audit/AuditProgressPage.jsx';
@@ -56,6 +58,7 @@ export function AppShell() {
     setAuditView,
     notifications,
     activeScan,
+    showToast,
   } = useEyra();
   const { displayName, initials, user } = useAuth();
   const navigate = useNavigate();
@@ -106,6 +109,19 @@ export function AppShell() {
   function switchMode(next) {
     setMode(next);
     if (next === 'audit') setAuditView('overview');
+  }
+
+  async function onOpenExtension() {
+    showToast?.('Opening EYRA in VS Code…', 'info');
+    const result = await launchOpenExtension({
+      editor: 'vscode',
+      openViaBrain: (body) => api.openExtension(body),
+    });
+    if (!result.ok) {
+      showToast?.(result.reason || 'Could not open EYRA in VS Code.', 'error');
+      return;
+    }
+    showToast?.(result.message || 'Opened EYRA in VS Code.', 'info');
   }
 
   return (
@@ -273,28 +289,40 @@ export function AppShell() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center justify-self-center rounded bg-surface-container p-0.5">
+          <div className="flex shrink-0 items-center gap-space-xs justify-self-center sm:gap-space-sm">
+            <div className="flex items-center rounded bg-surface-container p-0.5">
+              <button
+                type="button"
+                onClick={() => switchMode('runtime')}
+                className={`rounded px-2.5 py-1 font-label-md text-label-md whitespace-nowrap transition-colors sm:px-3 ${
+                  mode === 'runtime'
+                    ? 'bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.25)]'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Runtime Debugging
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('audit')}
+                className={`rounded px-2.5 py-1 font-label-md text-label-md whitespace-nowrap transition-colors sm:px-3 ${
+                  mode === 'audit'
+                    ? 'bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.25)]'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Codebase Audit
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => switchMode('runtime')}
-              className={`rounded px-2.5 py-1 font-label-md text-label-md whitespace-nowrap transition-colors sm:px-3 ${
-                mode === 'runtime'
-                  ? 'bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.25)]'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
+              onClick={() => onOpenExtension()}
+              title="Install the local EYRA VSIX into VS Code and open it"
+              aria-label="Open Extension in VS Code"
+              className="flex h-7 items-center gap-1.5 rounded border border-outline-variant/30 bg-surface-container-low px-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
             >
-              Runtime Debugging
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode('audit')}
-              className={`rounded px-2.5 py-1 font-label-md text-label-md whitespace-nowrap transition-colors sm:px-3 ${
-                mode === 'audit'
-                  ? 'bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(53,214,242,0.25)]'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              Codebase Audit
+              <span className="material-symbols-outlined text-[15px] text-primary">extension</span>
+              <span className="hidden whitespace-nowrap sm:inline">Open Extension</span>
             </button>
           </div>
 

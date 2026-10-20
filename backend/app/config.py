@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     eyra_audit_enrich_limit: int = Field(default=12, ge=1, le=40)
     # HMAC secret for access tokens (set EYRA_AUTH_SECRET in .env for production-like demos)
     eyra_auth_secret: str = ""
+    # Shared with the Code Audit process. Empty means Brain generates one when it spawns the engine.
+    eyra_audit_internal_secret: str = ""
 
     @model_validator(mode="after")
     def resolve_model_aliases(self) -> "Settings":

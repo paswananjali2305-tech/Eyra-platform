@@ -6,10 +6,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { sandboxService } from '../services/sandbox.js';
 import { detectCodebaseMeta } from '../services/languageDetector.js';
 import { scanStorage } from '../services/storage.js';
+import { requireAuditUser } from '../services/internalAuth.js';
 import { cloneGithubRepo } from '../services/githubClone.js';
 import { collectRepoFiles } from '../services/repoFileInventory.js';
 
 const router = express.Router();
+router.use(requireAuditUser);
 
 const uploadDir = path.resolve('./temp_uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -163,6 +165,7 @@ router.post('/upload', runUpload, async (req, res) => {
       meta,
       extractedDir,
       sourceType,
+      ownerUserId: req.eyraUserId,
       fileInventory,
       logs: [
         {

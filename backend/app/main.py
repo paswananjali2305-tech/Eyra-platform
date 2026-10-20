@@ -3,9 +3,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 import httpx
 import sqlite3
 
@@ -13,6 +15,7 @@ from app import __version__
 from app.agent import run_investigation
 from app.agent.groq_reasoner import enrich_findings_with_groq
 from app.audit_engine import start_audit_engine, stop_audit_engine
+from app.audit_auth import audit_identity_headers
 from app.audit_proxy import audit_base, proxy_json, proxy_request
 from app.auth import (
     AuthUser,
@@ -24,6 +27,17 @@ from app.auth import (
     verify_password,
 )
 from app.config import get_settings
+from app.extension_auth import (
+    EXTENSION_PREFIX,
+    exchange_connect_code,
+    issue_connect_code,
+    revoke_extension_credential,
+)
+from app.extension_launch import (
+    ensure_vsix,
+    extension_status,
+    open_local_extension,
+)
 from app.database import (
     clear_sessions,
     create_user,
@@ -34,17 +48,23 @@ from app.database import (
     get_user_by_login,
     get_user_by_username,
     init_db,
+    execution_timing,
     list_sessions,
+    record_run_duration,
     stats,
     update_config,
 )
 from app.performance import (
     build_performance_payload,
     generate_test_cases,
+    measure_line_coverage,
     run_test_case,
     suggest_optimized_maybe_llm,
 )
 from app.runtimes import execute_snippet, list_runtime_capabilities
+from app.runtimes.registry import normalize_language_id
+from app.jstestgen import analyze_js_structure
+from app.testgen import analyze_python_structure
 from app.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -52,6 +72,10 @@ from app.schemas import (
     AuthRegisterRequest,
     AuthTokenResponse,
     AuthUserPublic,
+    ExtensionCodeResponse,
+    ExtensionExchangeRequest,
+    ExtensionOpenRequest,
+    ExtensionOpenResponse,
     ConfigResponse,
     ConfigUpdateRequest,
     LlmModelsRequest,
@@ -157,12 +181,91 @@ def auth_me(user: Annotated[AuthUser, Depends(get_current_user)]) -> AuthUserPub
     return _public_user(user)
 
 
+@app.post("/api/auth/extension/code", response_model=ExtensionCodeResponse)
+def extension_connect_code(
+    user: Annotated[AuthUser, Depends(get_current_user)],
+) -> ExtensionCodeResponse:
+    """Issue a two-minute, single-use code for the signed-in web user."""
+    code, expires_in = issue_connect_code(user.id)
+    return ExtensionCodeResponse(code=code, expires_in=expires_in)
+
+
+@app.post("/api/auth/extension/exchange", response_model=AuthTokenResponse)
+def extension_exchange(body: ExtensionExchangeRequest) -> AuthTokenResponse:
+    """Exchange a connect code for a revocable credential on the same account."""
+    token, row = exchange_connect_code(body.code)
+    user = user_from_row(row)
+    return AuthTokenResponse(access_token=token, user=_public_user(user))
+
+
+@app.post("/api/auth/extension/disconnect")
+def extension_disconnect(request: Request) -> dict[str, bool]:
+    """Revoke the presented extension credential. A web login token is left valid."""
+    auth = request.headers.get("Authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    token = auth[7:].strip()
+    if not token.startswith(EXTENSION_PREFIX):
+        raise HTTPException(
+            status_code=400,
+            detail="This is not an extension credential. The web session was not changed.",
+        )
+    revoked = revoke_extension_credential(token)
+    if not revoked:
+        raise HTTPException(status_code=401, detail="Extension credential is invalid, expired, or revoked")
+    return {"revoked": True}
+
+
+@app.get("/api/extension/status")
+def api_extension_status(
+    editor: Annotated[str, Query(pattern="^(auto|cursor|vscode)$")] = "vscode",
+) -> dict:
+    """Local extension readiness — not Marketplace presence. Target editor is VS Code."""
+    return extension_status(editor)
+
+
+@app.post("/api/extension/open", response_model=ExtensionOpenResponse)
+def api_extension_open(body: ExtensionOpenRequest) -> ExtensionOpenResponse:
+    """Install the repo VSIX into VS Code (or EDH fallback) and open EYRA.
+
+    Does not pass tokens or auto-sign-in. Connect from Web stays separate.
+    """
+    result = open_local_extension(body.editor)
+    return ExtensionOpenResponse(
+        ok=result.ok,
+        editor=result.editor,
+        extension_id=result.extension_id,
+        uri=result.uri,
+        vsix_path=result.vsix_path,
+        installed=result.installed,
+        opened=result.opened,
+        mode=result.mode,
+        message=result.message,
+        detail=result.detail,
+    )
+
+
+@app.get("/api/extension/vsix")
+def api_extension_vsix_download() -> FileResponse:
+    """Download the locally packaged EYRA VSIX for manual install."""
+    try:
+        vsix = ensure_vsix()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return FileResponse(
+        path=vsix,
+        media_type="application/octet-stream",
+        filename=Path(vsix).name,
+    )
+
+
 @app.get("/api/status", response_model=StatusResponse)
 def status(
     user: Annotated[AuthUser | None, Depends(get_optional_user)] = None,
 ) -> StatusResponse:
     s = get_settings()
     counts = stats(user_id=user.id if user else None)
+    timing = execution_timing(user_id=user.id if user else None)
     return StatusResponse(
         service="eyra-brain",
         version=__version__,
@@ -178,6 +281,8 @@ def status(
         session_count=counts["session_count"],
         verified_count=counts["verified_count"],
         open_investigations=counts["open_investigations"],
+        avg_execution_ms=timing["avg_execution_ms"],
+        execution_count=int(timing["execution_count"] or 0),
         extension_note=(
             "VS Code Eyes is a separate client. This endpoint does not prove extension "
             "connectivity; the web UI reports Eyes status from local preferences."
@@ -368,7 +473,10 @@ def runtimes() -> RuntimesListResponse:
 
 
 @app.post("/api/execute", response_model=ExecuteResponse)
-def execute(body: ExecuteRequest) -> ExecuteResponse:
+def execute(
+    body: ExecuteRequest,
+    user: Annotated[AuthUser | None, Depends(get_optional_user)] = None,
+) -> ExecuteResponse:
     """Execute editor buffer via the multilingual runtime registry (temp dir + timeout)."""
     s = get_settings()
     result = execute_snippet(
@@ -377,6 +485,8 @@ def execute(body: ExecuteRequest) -> ExecuteResponse:
         file_name=body.file_name or "snippet",
         timeout_s=s.eyra_exec_timeout_s,
     )
+    if user and result.runtime_available and result.status != "RUNTIME_UNAVAILABLE":
+        record_run_duration(user.id, result.duration_ms)
     return ExecuteResponse.model_validate(result.to_api_dict())
 
 
@@ -415,12 +525,49 @@ def performance_tests_generate(body: PerformanceTestsRequest) -> dict:
     cases = generate_test_cases(
         body.code, language=body.language, function_name=body.function_name
     )
+    lang_token = normalize_language_id(body.language)
+    if lang_token in {"javascript", "typescript"}:
+        structure = analyze_js_structure(body.code)
+    elif lang_token == "python":
+        structure = analyze_python_structure(body.code)
+    else:
+        structure = {"functions": [], "classes": [], "imports": [], "assertions": 0, "top_level_executable": False}
+    analysis = {
+        "functions": structure.get("functions", []),
+        "classes": structure.get("classes", []),
+        "imports": structure.get("imports", []),
+        "assertions": structure.get("assertions", 0),
+        "top_level_executable": bool(structure.get("top_level_executable")),
+        "parse_error": structure.get("parse_error"),
+    }
+    notice = None
+    if lang_token not in {"python", "javascript", "typescript"}:
+        notice = (
+            f"Automatic test generation does not support {body.language} yet. "
+            f"Supported generators: Python, JavaScript, and TypeScript. "
+            f"No test cases were generated."
+        )
+    mode = cases[0].get("mode") if cases else ("unsupported" if notice else "clarification")
     return {
         "cases": cases,
+        "mode": mode,
+        "notice": notice,
+        "language": lang_token,
+        "file_name": body.file_name,
+        "target": cases[0].get("target") if cases else None,
+        "analysis": analysis,
         "total": len(cases),
         "passed": 0,
         "failed": 0,
+        "error": 0,
+        "skipped": 0,
         "not_run": len(cases),
+        "coverage": {
+            "status": "unavailable",
+            "measured": False,
+            "percent": None,
+            "reason": "Coverage instrumentation was not run during test generation.",
+        },
     }
 
 
@@ -431,6 +578,10 @@ def performance_tests_run(body: PerformanceRunTestsRequest) -> dict:
     if not cases:
         cases = generate_test_cases(body.code, language=body.language)
     if body.case_ids:
+        available = {int(c.get("id", -1)) for c in cases}
+        unknown = [item for item in body.case_ids if item not in available]
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"Unknown test case id(s): {unknown}")
         id_set = set(body.case_ids)
         selected = [c for c in cases if int(c.get("id", -1)) in id_set]
     else:
@@ -452,24 +603,52 @@ def performance_tests_run(body: PerformanceRunTestsRequest) -> dict:
         cid = int(c.get("id", -1))
         merged.append(by_id.get(cid, c))
 
-    passed = sum(1 for c in merged if c.get("status") == "passed")
-    failed = sum(1 for c in merged if c.get("status") == "failed")
-    not_run = sum(1 for c in merged if c.get("status") == "not_run")
+    def count(status: str) -> int:
+        return sum(1 for c in merged if str(c.get("status", "")).lower() == status)
+
+    passed = count("passed")
+    failed = count("failed")
+    error = count("error")
+    skipped = count("skipped")
+    not_run = count("not_run")
+    evaluated = passed + failed
+    pass_rate = round((passed / evaluated) * 100, 1) if evaluated else None
+    coverage = measure_line_coverage(
+        body.code,
+        results,
+        language=body.language,
+        file_name=body.file_name,
+    )
+    coverage_line = (
+        f"> Line coverage {coverage['percent']}% ({coverage['covered_lines']}/{coverage['total_lines']} lines) — {coverage['reason']}"
+        if coverage["measured"]
+        else f"> Coverage unavailable: {coverage['reason']}"
+    )
     log_lines = [
         f"> Ran {len(results)} test(s)",
-        f"> Passed {passed} · Failed {failed} · Not run {not_run}",
+        f"> Passed {passed} · Failed {failed} · Error {error} · Skipped {skipped} · Not run {not_run}",
+        coverage_line,
     ]
     for r in results:
+        detail = r.get("failure_reason") or ""
         log_lines.append(
             f"> #{r.get('id')} {r.get('description')} → {r.get('status')} "
-            f"(expected={r.get('expected')!r} actual={r.get('actual')!r})"
+            f"(expected={r.get('expected_result') or r.get('expected')!r} actual={r.get('actual')!r})"
+            f"{f' — {detail}' if detail else ''}"
         )
     return {
         "cases": merged,
         "total": len(merged),
         "passed": passed,
         "failed": failed,
+        "error": error,
+        "skipped": skipped,
+        "executed": 0,
         "not_run": not_run,
+        "pass_rate_percent": pass_rate,
+        "coverage": coverage,
+        "language": normalize_language_id(body.language),
+        "file_name": body.file_name,
         "log": "\n".join(log_lines),
     }
 
@@ -494,8 +673,12 @@ async def audit_health() -> dict:
 
 
 @app.api_route("/api/audit/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def audit_gateway(path: str, request: Request):
-    """Proxy to Eyraaaa CodeAudit engine (upload/scan/report)."""
+async def audit_gateway(
+    path: str,
+    request: Request,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+):
+    """Proxy to the Code Audit engine. Identity is the validated Brain token, then re-signed."""
     # SSE: stream through without buffering JSON wrapper
     if path.endswith("/events") and request.method == "GET":
         url = f"{audit_base()}/api/{path}"
@@ -504,7 +687,12 @@ async def audit_gateway(path: str, request: Request):
 
             async def event_stream():
                 try:
-                    async with client.stream("GET", url, params=dict(request.query_params)) as res:
+                    async with client.stream(
+                        "GET",
+                        url,
+                        params=dict(request.query_params),
+                        headers=audit_identity_headers(user.id),
+                    ) as res:
                         async for chunk in res.aiter_bytes():
                             yield chunk
                 finally:
@@ -517,4 +705,4 @@ async def audit_gateway(path: str, request: Request):
                 detail=f"Audit engine unreachable at {audit_base()}",
             ) from exc
 
-    return await proxy_request(request, f"/api/{path}")
+    return await proxy_request(request, f"/api/{path}", user_id=user.id)

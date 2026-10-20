@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import get_settings
 from app.database import get_user_by_id
+from app.extension_auth import EXTENSION_PREFIX, extension_user_row
 
 _TOKEN_TTL_S = 60 * 60 * 24 * 14  # 14 days
 _PBKDF2_ROUNDS = 120_000
@@ -121,7 +122,13 @@ async def get_current_user(
 ) -> AuthUser:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Authentication required")
-    payload = decode_access_token(credentials.credentials)
+    raw = credentials.credentials
+    if raw.startswith(EXTENSION_PREFIX):
+        row = extension_user_row(raw)
+        if not row:
+            raise HTTPException(status_code=401, detail="Extension credential is invalid, expired, or revoked")
+        return user_from_row(row)
+    payload = decode_access_token(raw)
     row = get_user_by_id(str(payload["sub"]))
     if not row:
         raise HTTPException(status_code=401, detail="User not found")
@@ -133,8 +140,12 @@ async def get_optional_user(
 ) -> AuthUser | None:
     if credentials is None or credentials.scheme.lower() != "bearer":
         return None
+    raw = credentials.credentials
+    if raw.startswith(EXTENSION_PREFIX):
+        row = extension_user_row(raw)
+        return user_from_row(row) if row else None
     try:
-        payload = decode_access_token(credentials.credentials)
+        payload = decode_access_token(raw)
     except HTTPException:
         return None
     row = get_user_by_id(str(payload["sub"]))

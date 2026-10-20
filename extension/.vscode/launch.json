@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run EYRA Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/stitch_eyra_runtime_debugger/extension"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/stitch_eyra_runtime_debugger/extension/out/**/*.js"
+      ],
+      "preLaunchTask": "compile EYRA extension"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { collectRepoFiles } from './repoFileInventory.js';
 
-class ScanStorage {
+export class ScanStorage {
   constructor(storageFile = './data/scans.json') {
     this.storageFile = path.resolve(storageFile);
     this.scans = new Map();
@@ -154,13 +154,42 @@ class ScanStorage {
     );
   }
 
+  /**
+   * Legacy scans have no ownerUserId. They stay on disk and are not listed,
+   * readable, or clearable by any user. They are never assigned to the first caller.
+   */
+  listForUser(userId) {
+    if (!userId) return [];
+    return this.getAllScans().filter((scan) => scan.ownerUserId && scan.ownerUserId === userId);
+  }
+
+  getOwnedScan(id, userId, opts = {}) {
+    const scan = this.getScan(id, opts);
+    if (!scan || !userId || !scan.ownerUserId || scan.ownerUserId !== userId) return null;
+    return scan;
+  }
+
+  /** Delete only this user's scans. Legacy and other owners are left in place. */
+  clearForUser(userId) {
+    if (!userId) return 0;
+    let n = 0;
+    for (const scan of this.getAllScans()) {
+      if (scan.ownerUserId === userId) {
+        this.scans.delete(scan.id);
+        n += 1;
+      }
+    }
+    if (n) this.save();
+    return n;
+  }
+
   deleteScan(id) {
     const res = this.scans.delete(id);
     this.save();
     return res;
   }
 
-  /** Wipe all persisted scans (History / Clear Stale Cache). */
+  /** Wipe every scan. Not used by the user-facing Clear Stale Cache action. */
   clearAll() {
     const n = this.scans.size;
     this.scans.clear();

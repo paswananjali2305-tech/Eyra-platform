@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useEyra } from '../context/EyraContext';
+import { normalizeDisplayedCode, presentSuggestedFix } from '../lib/codeText.js';
 import { loadWorkspaceSlice, saveWorkspaceSlice } from '../lib/workspaceDraft.js';
 
 const QUICK_ACTIONS = [
@@ -212,7 +213,7 @@ function CodeResultCard({
 }) {
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
-  const lines = String(code || '').replace(/\r\n/g, '\n').split('\n');
+  const lines = normalizeDisplayedCode(code).split('\n');
   const langLabel =
     /python|py/i.test(String(language || '')) || !language
       ? 'Python'
@@ -489,6 +490,37 @@ function ErrorAlertCard({ errorType, detail }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function DiagnosisMessage({ msg, fileName, onCopy, onApply, onTests, onExplain }) {
+  const fix = presentSuggestedFix(msg.fixSummary, msg.fixCode, msg.originalCode);
+  return (
+    <>
+      <ErrorAlertCard errorType={msg.errorType} detail={msg.errorDetail} />
+      {msg.originalCode ? (
+        <CodeResultCard
+          title={msg.fileName || fileName}
+          language={msg.language}
+          code={msg.originalCode}
+          highlightLine={msg.highlightLine}
+          borderTone="red"
+          onCopy={() => onCopy(normalizeDisplayedCode(msg.originalCode))}
+        />
+      ) : null}
+      <SuggestedFixBlock
+        summary={fix.summary}
+        code={fix.code}
+        language={msg.language}
+        fileName={msg.fileName}
+        onCopy={() => onCopy(fix.code)}
+      />
+      <DiagnosisActions
+        onApply={() => onApply(fix.code.trim())}
+        onTests={onTests}
+        onExplain={onExplain}
+      />
+    </>
   );
 }
 
@@ -843,10 +875,14 @@ export function EyraAssistantChat({
       result?.root_cause ||
       exec?.stderr ||
       'A runtime fault was captured from the terminal.';
-    const fixCode = result?.suggested_correction?.corrected_code || null;
+    const presented = presentSuggestedFix(
+      result?.suggested_correction?.summary || result?.root_cause || '',
+      result?.suggested_correction?.corrected_code || '',
+      codeSnippet || result?.code_snippet || bufferText,
+    );
+    const fixCode = presented.code || null;
     const fixSummary =
-      result?.suggested_correction?.summary ||
-      result?.root_cause ||
+      presented.summary ||
       (fixCode ? 'Review the corrected buffer before pasting it back (HITL).' : null);
 
     if (!errType && !failed) {
@@ -969,12 +1005,21 @@ export function EyraAssistantChat({
         setFollowUps([]);
       } else if (actionId === 'explain' || /explain/i.test(text)) {
         if (activeResult?.root_cause || activeResult?.explanation) {
+          const related = presentSuggestedFix(
+            activeResult.suggested_correction?.summary || '',
+            activeResult.suggested_correction?.corrected_code || '',
+            code,
+          );
           pushBot({
-            text:
-              activeResult.explanation ||
-              activeResult.root_cause ||
-              'Here is what the Brain last reported for this buffer.',
-            code: activeResult.suggested_correction?.corrected_code || null,
+            text: related.code
+              ? activeResult.explanation ||
+                activeResult.root_cause ||
+                'Here is what the Brain last reported for this buffer.'
+              : related.summary ||
+                activeResult.explanation ||
+                activeResult.root_cause ||
+                'Here is what the Brain last reported for this buffer.',
+            code: related.code || null,
             codeTitle: 'Related Suggestion',
             changes: activeResult.root_cause ? [activeResult.root_cause] : [],
             language,
@@ -987,9 +1032,16 @@ export function EyraAssistantChat({
           };
           const result = await api.analyze({ ...payload, terminal_output: text });
           adoptResult?.(result);
+          const explained = presentSuggestedFix(
+            result.suggested_correction?.summary || '',
+            result.suggested_correction?.corrected_code || '',
+            code,
+          );
           pushBot({
-            text: result.explanation || result.root_cause || 'Analysis complete.',
-            code: result.suggested_correction?.corrected_code || null,
+            text: explained.code
+              ? result.explanation || result.root_cause || explained.summary || 'Analysis complete.'
+              : explained.summary || result.explanation || result.root_cause || 'Analysis complete.',
+            code: explained.code || null,
             codeTitle: 'Suggested Fix',
             changes: [result.root_cause, result.error_summary].filter(Boolean),
             language: result.language || language,
@@ -1011,12 +1063,19 @@ export function EyraAssistantChat({
         if (isRealErrorType(result?.error_type)) {
           pushDiagnosisFromResult(result, null, code, { fileName, language });
         } else {
+          const suggested = presentSuggestedFix(
+            result?.suggested_correction?.summary || '',
+            result?.suggested_correction?.corrected_code || '',
+            code,
+          );
           pushBot({
-            text:
-              result?.explanation ||
-              result?.root_cause ||
-              'Buffer looks clean — no hard fault detected.',
-            code: result?.suggested_correction?.corrected_code || null,
+            text: suggested.code
+              ? result?.explanation || result?.root_cause || suggested.summary || 'Analysis complete.'
+              : suggested.summary ||
+                result?.explanation ||
+                result?.root_cause ||
+                'Buffer looks clean — no hard fault detected.',
+            code: suggested.code || null,
             codeTitle: 'Suggested Fix',
             changes: [result?.root_cause, result?.verification?.detail, result?.reasoning_note].filter(
               Boolean,
@@ -1329,56 +1388,37 @@ export function EyraAssistantChat({
                 ) : null}
 
                 {msg.kind === 'diagnosis' ? (
-                  <>
-                    <ErrorAlertCard errorType={msg.errorType} detail={msg.errorDetail} />
-                    {msg.originalCode ? (
-                      <CodeResultCard
-                        title={msg.fileName || fileName}
-                        language={msg.language}
-                        code={msg.originalCode}
-                        highlightLine={msg.highlightLine}
-                        borderTone="red"
-                        onCopy={() => copyCode(msg.originalCode)}
-                      />
-                    ) : null}
-                    <SuggestedFixBlock
-                      summary={msg.fixSummary}
-                      code={msg.fixCode}
-                      language={msg.language}
-                      fileName={msg.fileName}
-                      onCopy={() => copyCode(msg.fixCode)}
-                    />
-                    <DiagnosisActions
-                      onApply={() => {
-                        const patch = String(msg.fixCode || '').trim();
-                        if (!patch) {
-                          showToast?.('No suggested fix to apply yet', 'error');
-                          return;
-                        }
-                        if (typeof onApplyFix === 'function') {
-                          onApplyFix(patch);
-                          pushBot({
-                            text: 'Applied the suggested fix to your editor buffer. Re-run to verify.',
-                          });
-                          showToast?.('Fix applied to editor', 'info');
-                          return;
-                        }
-                        // Fallback if parent did not wire apply
-                        void copyCode(patch);
-                        onCopyPatch?.();
-                        showToast?.('Fix copied — paste into the editor', 'info');
-                      }}
-                      onTests={() => runAction('generate', 'Generate tests for this code')}
-                      onExplain={() => runAction('explain', 'Explain step by step')}
-                    />
-                  </>
+                  <DiagnosisMessage
+                    msg={msg}
+                    fileName={fileName}
+                    onCopy={copyCode}
+                    onApply={(patch) => {
+                      if (!patch) {
+                        showToast?.('No suggested fix to apply yet', 'error');
+                        return;
+                      }
+                      if (typeof onApplyFix === 'function') {
+                        onApplyFix(patch);
+                        pushBot({
+                          text: 'Applied the suggested fix to your editor buffer. It was not written to disk and has not been verified.',
+                        });
+                        showToast?.('Fix applied to the editor buffer', 'info');
+                        return;
+                      }
+                      void copyCode(patch);
+                      onCopyPatch?.();
+                      showToast?.('Fix copied — paste into the editor', 'info');
+                    }}
+                    onTests={() => runAction('generate', 'Generate tests for this code')}
+                    onExplain={() => runAction('explain', 'Explain step by step')}
+                  />
                 ) : msg.code ? (
                   <CodeResultCard
                     title={msg.codeTitle}
                     language={msg.language}
-                    code={msg.code}
+                    code={normalizeDisplayedCode(msg.code)}
                     changes={msg.changes}
-                    onCopy={() => copyCode(msg.code)}
+                    onCopy={() => copyCode(normalizeDisplayedCode(msg.code))}
                   />
                 ) : null}
               </div>

@@ -171,6 +171,7 @@ export function auditDependencies(extractedDir) {
   let packagesChecked = 0;
   let skippedUnaffected = 0;
   let unknownVersionHits = 0;
+  let unmatchedPackages = 0;
 
   const pkgJsonPath = path.join(extractedDir, 'package.json');
   if (fs.existsSync(pkgJsonPath)) {
@@ -184,7 +185,10 @@ export function auditDependencies(extractedDir) {
         const match = KNOWN_CVES.find(
           (c) => c.ecosystem === 'npm' && c.package.toLowerCase() === depName.toLowerCase(),
         );
-        if (!match) continue;
+        if (!match) {
+          unmatchedPackages += 1;
+          continue;
+        }
         const parsed = parseVersion(cleanVer);
         if (!parsed) {
           unknownVersionHits += 1;
@@ -200,6 +204,7 @@ export function auditDependencies(extractedDir) {
         findings: [],
         toolStatus: {
           status: 'FAILED',
+          checkStatus: 'analyzer_failed',
           message: `Failed to parse package.json: ${e.message}`,
           advisorySource: ADVISORY_SOURCE,
         },
@@ -223,7 +228,10 @@ export function auditDependencies(extractedDir) {
         const match = KNOWN_CVES.find(
           (c) => c.ecosystem === 'pypi' && c.package.toLowerCase() === cleanName.toLowerCase(),
         );
-        if (!match) continue;
+        if (!match) {
+          unmatchedPackages += 1;
+          continue;
+        }
         if (!cleanVer || !parseVersion(cleanVer)) {
           unknownVersionHits += 1;
           findings.push(
@@ -240,6 +248,7 @@ export function auditDependencies(extractedDir) {
         findings: [],
         toolStatus: {
           status: 'FAILED',
+          checkStatus: 'analyzer_failed',
           message: `Failed to parse requirements.txt: ${e.message}`,
           advisorySource: ADVISORY_SOURCE,
         },
@@ -252,9 +261,13 @@ export function auditDependencies(extractedDir) {
       findings: [],
       toolStatus: {
         status: 'SKIPPED',
-        message: 'No supported dependency manifests (package.json / requirements.txt) at repo root',
+        checkStatus: 'unsupported_manifest',
+        message: 'No supported dependency manifests (package.json / requirements.txt) at repo root. Maven, Gradle, poetry, and go.mod are not checked by this offline list.',
         advisorySource: ADVISORY_SOURCE,
+        datasetId: ADVISORY_SOURCE,
         liveLookup: false,
+        limitation:
+          'Unsupported manifest. This is not a vulnerability scan and not a statement that dependencies are safe.',
       },
     };
   }
@@ -262,13 +275,23 @@ export function auditDependencies(extractedDir) {
   return {
     findings,
     toolStatus: {
-      status: findings.length ? 'FINDINGS' : 'PASS',
+      status: findings.length ? 'FINDINGS' : 'NO_DATASET_MATCH',
+      checkStatus: findings.some((f) => f.versionMatch === 'affected')
+        ? 'confirmed_match'
+        : findings.some((f) => f.versionMatch === 'unknown')
+          ? 'unknown_version'
+          : 'no_match_in_dataset',
       message: findings.length
-        ? `Offline advisory match: ${findings.length} finding(s); ${skippedUnaffected} name-hit(s) skipped (version not in range); ${unknownVersionHits} unknown-version`
-        : `Offline advisory scan complete — no affected versions among ${packagesChecked} package(s)`,
+        ? `Offline dataset ${ADVISORY_SOURCE}: ${findings.filter((f) => f.versionMatch === 'affected').length} confirmed match(es); ${unknownVersionHits} unknown-version; ${unmatchedPackages} package(s) were not in this dataset (not verified safe).`
+        : `Offline dataset ${ADVISORY_SOURCE}: no confirmed match among ${packagesChecked} package(s). ${unmatchedPackages} package(s) are absent from this short list and are not verified safe.`,
       advisorySource: ADVISORY_SOURCE,
+      datasetId: ADVISORY_SOURCE,
       liveLookup: false,
+      limitation:
+        'This check uses a small offline CVE list. It does not query OSV.dev, NVD, or GitHub Advisory. No match is not a clean bill of health.',
       packagesChecked,
+      unmatchedPackages,
+      confirmedMatches: findings.filter((f) => f.versionMatch === 'affected').length,
       skippedUnaffected,
       unknownVersionHits,
       manifests,

@@ -1,23 +1,23 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
 import uploadRouter from './routes/upload.js';
 import scanRouter from './routes/scan.js';
 import reportRouter from './routes/report.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { handleBindError } from './services/internalAuth.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT || 5000);
 
-// Enable CORS for frontend Vite dev server and production
+function corsOrigins() {
+  const raw = process.env.EYRA_AUDIT_CORS_ORIGINS
+    || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174';
+  return raw.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
 app.use(cors({
-  origin: '*',
+  origin: corsOrigins(),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Eyra-User-Id', 'X-Eyra-Ts', 'X-Eyra-Sig'],
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -43,38 +43,15 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Internal Server Error' });
 });
 
-// Self-healing port listener with automatic stale process reclamation
-function startServer(port, retryCount = 0) {
-  const server = app.listen(port, () => {
-    console.log(`[CodeAudit AI] Server running on http://localhost:${port}`);
+function startServer(port) {
+  const server = app.listen(port, '127.0.0.1', () => {
+    console.log(`[CodeAudit AI] Server running on http://127.0.0.1:${port}`);
   });
 
   server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      if (retryCount < 2) {
-        console.warn(`[CodeAudit AI] Port ${port} is occupied. Reclaiming port...`);
-        try {
-          if (process.platform === 'win32') {
-            const out = execSync(`netstat -ano | findstr :${port}`).toString();
-            const lines = out.trim().split('\n');
-            for (const line of lines) {
-              const parts = line.trim().split(/\s+/);
-              const pid = parts[parts.length - 1];
-              if (pid && pid !== '0' && pid !== String(process.pid)) {
-                execSync(`taskkill /F /PID ${pid}`);
-                console.log(`[CodeAudit AI] Terminated stale PID ${pid} on port ${port}`);
-              }
-            }
-          }
-        } catch (e) {}
-        setTimeout(() => startServer(port, retryCount + 1), 600);
-      } else {
-        console.warn(`[CodeAudit AI] Port ${port} occupied. Trying alternative port ${Number(port) + 1}...`);
-        startServer(Number(port) + 1, 0);
-      }
-    } else {
-      console.error('Server error:', err);
-    }
+    const outcome = handleBindError(err, port);
+    console.error(`[CodeAudit AI] ${outcome.message}`);
+    process.exit(1);
   });
 }
 

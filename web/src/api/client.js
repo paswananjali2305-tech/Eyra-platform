@@ -3,6 +3,8 @@
  * Base URL is configurable; secrets never live here.
  */
 
+import { inflightEpoch, isStaleEpoch } from '../lib/userSessionState';
+
 /** @typedef {'needs_review'|'hypothesis'|'verified'|'unverified'|'failed'} SessionStatus */
 
 /**
@@ -104,6 +106,7 @@ async function request(path, options = {}) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const url = `${getBaseUrl()}${path}`;
   const token = auth ? getAuthToken() : '';
+  const started = inflightEpoch();
 
   try {
     const res = await fetch(url, {
@@ -143,6 +146,9 @@ async function request(path, options = {}) {
       throw new ApiError(detail, res.status, data);
     }
 
+    if (isStaleEpoch(started)) {
+      throw new ApiError('Request discarded because the signed-in user changed.', 401);
+    }
     return data;
   } catch (err) {
     if (err instanceof ApiError) throw err;
@@ -197,6 +203,29 @@ export const api = {
   /** @returns {Promise<{id:string,email:string,username:string,display_name:string}>} */
   me() {
     return request('/api/auth/me', { timeoutMs: 10_000 });
+  },
+
+  /** One-time code for the signed-in user. The caller must not store it. */
+  extensionConnectCode() {
+    return request('/api/auth/extension/code', { method: 'POST', timeoutMs: 20_000 });
+  },
+
+  /** Local VSIX install + open in VS Code (unpublished extension; no Marketplace). */
+  extensionStatus(editor = 'vscode') {
+    const qs = new URLSearchParams({ editor: String(editor || 'vscode') });
+    return request(`/api/extension/status?${qs}`, { timeoutMs: 10_000, auth: false });
+  },
+
+  /**
+   * @param {{ editor?: 'auto' | 'cursor' | 'vscode' }} [body]
+   */
+  openExtension(body = {}) {
+    return request('/api/extension/open', {
+      method: 'POST',
+      body: JSON.stringify({ editor: body.editor || 'vscode' }),
+      timeoutMs: 300_000,
+      auth: false,
+    });
   },
 
   /**
@@ -306,6 +335,7 @@ export const api = {
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      const started = inflightEpoch();
       const url = `${getBaseUrl()}/api/audit/upload`;
       xhr.open('POST', url);
       const token = getAuthToken();
@@ -318,6 +348,10 @@ export const api = {
         }
       };
       xhr.onload = () => {
+        if (isStaleEpoch(started)) {
+          reject(new ApiError('Request discarded because the signed-in user changed.', 401));
+          return;
+        }
         let data = null;
         try {
           data = xhr.responseText ? JSON.parse(xhr.responseText) : null;

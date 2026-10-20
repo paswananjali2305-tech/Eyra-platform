@@ -845,6 +845,11 @@ export function AuditCodeWorkspace() {
       showToast?.('Select an issue first, then Apply fix', 'info');
       return;
     }
+    if (finding.patchApplicable === false && !finding.suggestion) {
+      showToast?.('No source-specific patch is available. Nothing was applied.', 'info');
+      return;
+    }
+    const applyNow = () => {
     const bundle = buildFixBundle(finding, editorValue);
     if (!bundle.hasFix) {
       showToast?.('Could not build a fix for this issue', 'error');
@@ -876,15 +881,33 @@ export function AuditCodeWorkspace() {
     const stillOpen = recheckFileAfterEdit(activeId, next, [findingKey(finding)]);
     if (stillOpen.length) {
       showToast?.(
-        `Fix applied — re-checked: ${stillOpen.length} issue${stillOpen.length === 1 ? '' : 's'} still open. Save (Ctrl+S) to keep.`,
+        `Applied to the editor buffer only — re-checked: ${stillOpen.length} issue${stillOpen.length === 1 ? '' : 's'} still open. Not written to disk and not verified.`,
         'info',
       );
     } else {
       showToast?.(
-        'Editor preview applied (not written to disk). Re-checked: no issues in buffer. Save keeps session edits only — not a verified repo fix.',
+        'Applied to the editor buffer only (not written to disk, verification not run). Save keeps session edits only.',
         'info',
       );
     }
+    };
+    const hash = finding.patchSourceHash;
+    if (hash && finding.patch && crypto?.subtle) {
+      const buf = new TextEncoder().encode(editorValue);
+      crypto.subtle.digest('SHA-256', buf).then((dig) => {
+        const hex = [...new Uint8Array(dig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+        if (hex !== hash) {
+          showToast?.(
+            'This patch is stale — the editor buffer changed after it was generated. It was not applied.',
+            'error',
+          );
+          return;
+        }
+        applyNow();
+      }).catch(() => applyNow());
+      return;
+    }
+    applyNow();
   }, [activeId, editorValue, finding, handleEditorChange, showToast, recheckFileAfterEdit]);
 
   /** Apply every issue on the current file (bottom-up), then re-check. */

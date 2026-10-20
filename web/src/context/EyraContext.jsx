@@ -1,5 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getBaseUrl, setBaseUrl as persistBaseUrl } from '../api/client';
+import { useAuth } from './AuthContext';
+import { inflightEpoch, isStaleEpoch } from '../lib/userSessionState';
+import { resetWorkspaceMemory } from '../lib/workspaceDraft';
 
 const EyraContext = createContext(null);
 
@@ -16,6 +19,8 @@ const AUDIT_VIEW_KEY = 'eyra.auditView';
 const AUDIT_VIEWS = new Set(['overview', 'ingest', 'progress', 'code', 'history', 'config']);
 
 export function EyraProvider({ children }) {
+  const { user } = useAuth();
+  const userId = user?.id || null;
   const [backendUrl, setBackendUrlState] = useState(getBaseUrl());
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState(null);
@@ -46,32 +51,7 @@ export function EyraProvider({ children }) {
       return false;
     }
   });
-  const [notifications, setNotifications] = useState(() => [
-    {
-      id: 'n1',
-      title: 'Brain online',
-      body: 'EYRA Brain health check succeeded.',
-      time: 'just now',
-      read: false,
-      href: '/config',
-    },
-    {
-      id: 'n2',
-      title: 'Audit findings ready',
-      body: 'Open Code Audit to inspect AST-flagged files.',
-      time: '2m ago',
-      read: false,
-      href: 'audit:code',
-    },
-    {
-      id: 'n3',
-      title: 'Investigation saved',
-      body: 'Latest ZeroDivisionError session stored in history.',
-      time: '15m ago',
-      read: true,
-      href: '/history',
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
   const [toast, setToast] = useState(null);
   const [activeScanId, setActiveScanIdState] = useState(() => {
     try {
@@ -117,6 +97,25 @@ export function EyraProvider({ children }) {
     }
   }, []);
 
+  const seenUserId = useRef(undefined);
+  useEffect(() => {
+    if (seenUserId.current === undefined) {
+      seenUserId.current = userId;
+      return;
+    }
+    if (seenUserId.current === userId) return;
+    seenUserId.current = userId;
+    resetWorkspaceMemory();
+    setActiveResult(null);
+    setLastExecResult(null);
+    setNotifications([]);
+    setScanList([]);
+    setActiveScan(null);
+    setActiveScanIdState(null);
+    setMode('runtime');
+    setAuditView('overview');
+  }, [userId, setMode, setAuditView]);
+
   useEffect(() => {
     refreshStatus();
     const id = setInterval(refreshStatus, 15000);
@@ -125,12 +124,19 @@ export function EyraProvider({ children }) {
 
   useEffect(() => {
     const sid = localStorage.getItem(WORKSPACE_KEY);
-    if (!sid) return;
+    if (!sid) return undefined;
+    const started = inflightEpoch();
     api
       .historyDetail(sid)
-      .then((r) => setActiveResult(r))
-      .catch(() => localStorage.removeItem(WORKSPACE_KEY));
-  }, [backendUrl]);
+      .then((r) => {
+        if (isStaleEpoch(started)) return;
+        setActiveResult(r);
+      })
+      .catch(() => {
+        if (!isStaleEpoch(started)) localStorage.removeItem(WORKSPACE_KEY);
+      });
+    return undefined;
+  }, [backendUrl, userId]);
 
   const setActiveScanId = useCallback((id) => {
     const next = id || null;
@@ -234,10 +240,11 @@ export function EyraProvider({ children }) {
   useEffect(() => {
     if (!activeScanId) return undefined;
     let cancelled = false;
+    const started = inflightEpoch();
     api
       .getScan(activeScanId)
       .then((data) => {
-        if (cancelled) return;
+        if (cancelled || isStaleEpoch(started)) return;
         const scan = data?.scan || data;
         if (scan?.id) {
           setActiveScan(scan);

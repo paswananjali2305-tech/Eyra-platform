@@ -15,22 +15,7 @@ import {
 } from '../lib/hydrateStitch.js';
 import HistoryStitch from './stitch_raw/HistoryPage.jsx';
 
-const HISTORY_UI_VERSION = 5;
-
-/** Phase-test / sample leftovers that must never appear as live history. */
-function isProbeOrDemoSession(item) {
-  const project = String(item?.project_name || '').toLowerCase();
-  const file = String(item?.file_name || '').toLowerCase();
-  if (/novapay/.test(project)) return true;
-  if (file === 'phase_c_probe.py' || file === 'progress-query.txt') return true;
-  if (
-    (project === 'default' || project === 'runtime-workspace') &&
-    (file === 'test.py' || file === 't.py' || file === 'demo.py' || file === 'snippet.py')
-  ) {
-    return true;
-  }
-  return false;
-}
+const HISTORY_UI_VERSION = 6;
 
 /** Map runtime session status / verification → severity chip (audit-style). */
 function runtimeSeverity(item) {
@@ -749,7 +734,7 @@ export function HistoryPage() {
       if (!auditOnly) {
         try {
           const data = await api.history({ limit: 50 });
-          sessions = (data?.items || []).filter((s) => !isProbeOrDemoSession(s));
+          sessions = data?.items || [];
         } catch {
           historyFailed = true;
           sessions = [];

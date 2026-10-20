@@ -4,6 +4,10 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
+from app.agent.diagnostics_evidence import (
+    evidence_from_diagnostics,
+    merge_diagnostic_evidence,
+)
 from app.agent.groq_reasoner import reason_with_groq
 from app.agent.local_reasoner import reason_locally
 from app.config import Settings, get_settings
@@ -92,6 +96,12 @@ async def run_investigation(
         TimelineEvent(step="Respond", detail="Structured report ready for developer review.", status="done")
     )
 
+    # Client VS Code Problems are authoritative evidence — never invented by the model.
+    evidence = merge_diagnostic_evidence(
+        evidence_from_diagnostics(req),
+        draft.evidence,
+    )
+
     if draft.verification.status == "verified":
         status = SessionStatus.VERIFIED
     elif draft.verification.is_hypothesis_only:
@@ -111,7 +121,7 @@ async def run_investigation(
         error_summary=draft.error_summary,
         root_cause=draft.root_cause,
         explanation=draft.explanation,
-        evidence=draft.evidence,
+        evidence=evidence,
         execution_timeline=timeline,
         suggested_correction=draft.suggested_correction,
         verification=draft.verification,

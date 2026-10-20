@@ -152,8 +152,9 @@ export function AnalysisPage() {
     const total = cases.length;
     const passed = cases.filter((c) => c.status === 'passed').length;
     const failed = cases.filter((c) => c.status === 'failed').length;
-    const not_run = cases.filter((c) => c.status === 'not_run').length;
-    return { total, passed, failed, not_run };
+    const executed = cases.filter((c) => c.status === 'executed').length;
+    const not_run = cases.filter((c) => c.status === 'not_run' || !c.status).length;
+    return { total, passed, failed, executed, not_run };
   }, [cases]);
 
   const runAnalyze = useCallback(
@@ -601,8 +602,8 @@ export function AnalysisPage() {
                 </h2>
               </div>
               <div className="font-code-compact text-[11px] text-outline pl-7">
-                Total {stats.total} · Passed {stats.passed} · Failed {stats.failed} · Not Run{' '}
-                {stats.not_run}
+                Total {stats.total} · Passed {stats.passed} · Failed {stats.failed} · Executed{' '}
+                {stats.executed} · Not Run {stats.not_run}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">

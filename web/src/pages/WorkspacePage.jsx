@@ -19,7 +19,7 @@ function bootSession() {
 }
 
 export function WorkspacePage() {
-  const { adoptResult, showToast, activeResult, setLastExecResult } = useEyra();
+  const { adoptResult, showToast, activeResult, setLastExecResult, refreshStatus } = useEyra();
   const bootRef = useRef(null);
   if (!bootRef.current) bootRef.current = bootSession();
   const boot = bootRef.current;
@@ -117,6 +117,9 @@ export function WorkspacePage() {
         file_name: requestBody.file_name,
       });
       rememberExec(exec);
+      if (exec.runtime_available !== false && exec.status !== 'RUNTIME_UNAVAILABLE') {
+        refreshStatus?.();
+      }
 
       const status = String(exec.status || '');
       if (status === 'RUNTIME_UNAVAILABLE' || exec.runtime_available === false) {

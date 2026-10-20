@@ -1,0 +1,125 @@
+{
+  "name": "eyra-runtime-debugger",
+  "displayName": "EYRA Runtime Debugger",
+  "description": "EYRA sidebar and investigation panel: chat, analysis, run, tests, and history.",
+  "version": "0.5.55",
+  "publisher": "eyra-runtime-debugger",
+  "icon": "media/eyra-bot-avatar.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onUri",
+    "onView:eyra.chatView",
+    "onView:eyra.healthView"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "eyra.checkBrain",
+        "title": "EYRA: Check Brain Connection"
+      },
+      {
+        "command": "eyra.signIn",
+        "title": "EYRA: Sign In"
+      },
+      {
+        "command": "eyra.signOut",
+        "title": "EYRA: Sign Out"
+      },
+      {
+        "command": "eyra.connectWeb",
+        "title": "EYRA: Connect from Web"
+      },
+      {
+        "command": "eyra.analyzeFile",
+        "title": "EYRA: Analyze Current File"
+      },
+      {
+        "command": "eyra.explainSelection",
+        "title": "EYRA: Explain Selected Code"
+      },
+      {
+        "command": "eyra.runFile",
+        "title": "EYRA: Run Current File"
+      },
+      {
+        "command": "eyra.generateTests",
+        "title": "EYRA: Generate Tests"
+      },
+      {
+        "command": "eyra.runTests",
+        "title": "EYRA: Run Tests"
+      },
+      {
+        "command": "eyra.analyzePerformance",
+        "title": "EYRA: Analyze Performance"
+      },
+      {
+        "command": "eyra.suggestOptimization",
+        "title": "EYRA: Suggest Optimization"
+      },
+      {
+        "command": "eyra.showHistory",
+        "title": "EYRA: Show History"
+      },
+      {
+        "command": "eyra.focusSidebar",
+        "title": "EYRA: Focus Sidebar"
+      }
+    ],
+    "configuration": {
+      "title": "EYRA",
+      "properties": {
+        "eyra.backendUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "Base URL of the EYRA FastAPI Brain. The extension calls GET /api/health on this origin."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "eyra",
+          "title": "EYRA",
+          "icon": "media/eyra.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "eyraChat",
+          "title": "EYRA",
+          "icon": "media/eyra.svg"
+        }
+      ]
+    },
+    "views": {
+      "eyra": [
+        {
+          "type": "webview",
+          "id": "eyra.healthView",
+          "name": "Workspace"
+        }
+      ],
+      "eyraChat": [
+        {
+          "type": "webview",
+          "id": "eyra.chatView",
+          "name": "Chat"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -p . -w",
+    "package": "npm run compile && npx --yes @vscode/vsce@3.2.1 package --out dist/eyra-runtime-debugger-0.5.55.vsix --allow-missing-repository --skip-license"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.6.3"
+  }
+}

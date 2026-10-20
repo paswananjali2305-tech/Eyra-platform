@@ -40,8 +40,10 @@ test('unaffected lodash version is not reported', () => {
   );
   const { findings, toolStatus } = auditDependencies(dir);
   assert.strictEqual(findings.length, 0, 'patched lodash should not hit');
-  assert.strictEqual(toolStatus.status, 'PASS');
+  assert.strictEqual(toolStatus.status, 'NO_DATASET_MATCH');
+  assert.strictEqual(toolStatus.checkStatus, 'no_match_in_dataset');
   assert.strictEqual(toolStatus.liveLookup, false);
+  assert.match(toolStatus.message, /not verified safe/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

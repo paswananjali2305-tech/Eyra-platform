@@ -27,6 +27,15 @@ export function ShellOverlays({
 }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [connectCode, setConnectCode] = useState('');
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [connectError, setConnectError] = useState('');
+  useEffect(() => {
+    if (!accountOpen) {
+      setConnectCode('');
+      setConnectError('');
+    }
+  }, [accountOpen]);
   const {
     mode,
     setMode,
@@ -371,7 +380,7 @@ export function ShellOverlays({
               </li>
             ))}
             {!notifications?.length ? (
-              <li className="px-3 py-4 font-body-sm text-body-sm text-outline">No notifications</li>
+              <li className="px-3 py-4 font-body-sm text-body-sm text-outline">No new notifications</li>
             ) : null}
           </ul>
         </div>
@@ -410,7 +419,49 @@ export function ShellOverlays({
 
       {/* Account menu */}
       {accountOpen ? (
-        <div className="fixed bottom-16 left-3 z-[70] w-52 overflow-hidden rounded border border-outline-variant/40 bg-surface-container-lowest shadow-xl">
+        <div className="fixed bottom-16 left-3 z-[70] w-72 overflow-hidden rounded border border-outline-variant/40 bg-surface-container-lowest shadow-xl">
+          <button
+            type="button"
+            disabled={connectBusy}
+            onClick={() => {
+              setConnectBusy(true);
+              setConnectError('');
+              api.extensionConnectCode()
+                .then((data) => {
+                  setConnectCode(typeof data?.code === 'string' ? data.code : '');
+                  if (!data?.code) setConnectError('The Brain did not return a connect code.');
+                })
+                .catch((err) => {
+                  setConnectCode('');
+                  setConnectError(err?.message || 'Could not create a connect code.');
+                })
+                .finally(() => setConnectBusy(false));
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[16px]">extension</span>
+            Connect VS Code
+          </button>
+          {connectError ? (
+            <p className="px-3 pb-2 font-body-sm text-body-sm text-error">{connectError}</p>
+          ) : null}
+          {connectCode ? (
+            <div className="border-t border-outline-variant/30 px-3 py-2">
+              <p className="font-body-sm text-body-sm text-on-surface-variant">
+                Paste this once in VS Code with EYRA: Connect from Web. It expires in 2 minutes.
+              </p>
+              <p className="mt-2 break-all font-code-compact text-code-compact text-primary">{connectCode}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(connectCode).catch(() => {});
+                }}
+                className="mt-2 font-body-sm text-body-sm text-primary"
+              >
+                Copy code
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => {

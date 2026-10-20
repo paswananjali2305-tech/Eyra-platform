@@ -16,11 +16,7 @@ function typeLines(lines, onTick, onDone) {
     }
     const line = lines[lineIdx];
     charIdx += 1;
-    onTick(
-      lines.slice(0, lineIdx).concat(line.slice(0, charIdx)),
-      lineIdx,
-      charIdx >= line.length,
-    );
+    onTick(lines.slice(0, lineIdx).concat(line.slice(0, charIdx)));
     if (charIdx >= line.length) {
       lineIdx += 1;
       charIdx = 0;
@@ -32,7 +28,11 @@ function typeLines(lines, onTick, onDone) {
     }
   };
 
-  timer = setTimeout(tick, 280);
+  if (lines[0]) {
+    charIdx = 1;
+    onTick([lines[0].slice(0, 1)]);
+  }
+  timer = setTimeout(tick, 16);
   return () => {
     cancelled = true;
     if (timer) clearTimeout(timer);
@@ -42,9 +42,8 @@ function typeLines(lines, onTick, onDone) {
 export function WelcomeIntroPage() {
   const { user, isAuthenticated, bootstrapping, welcomePending, consumeWelcome } = useAuth();
   const navigate = useNavigate();
-  const [visible, setVisible] = useState([]);
+  const finished = useRef(false);
   const [done, setDone] = useState(false);
-  const started = useRef(false);
 
   const name = useMemo(() => {
     const raw = (user?.display_name || user?.username || 'friend').trim();
@@ -61,23 +60,33 @@ export function WelcomeIntroPage() {
     [name],
   );
 
+  const [visible, setVisible] = useState(() => [lines[0].slice(0, 1)]);
+
   useEffect(() => {
-    if (bootstrapping || !isAuthenticated) return undefined;
+    if (!isAuthenticated) return undefined;
     if (!welcomePending()) {
-      navigate('/', { replace: true });
+      if (!bootstrapping) navigate('/', { replace: true });
       return undefined;
     }
-    if (started.current) return undefined;
-    started.current = true;
-    return typeLines(
-      lines,
-      (partial) => setVisible(partial),
-      () => {
-        setDone(true);
-        consumeWelcome();
-        setTimeout(() => navigate('/', { replace: true }), 700);
-      },
-    );
+    if (finished.current) {
+      if (bootstrapping) return undefined;
+      consumeWelcome();
+      const leaveTimer = setTimeout(() => navigate('/', { replace: true }), 900);
+      return () => clearTimeout(leaveTimer);
+    }
+
+    let leaveTimer = null;
+    const cancel = typeLines(lines, setVisible, () => {
+      finished.current = true;
+      setDone(true);
+      if (bootstrapping) return;
+      consumeWelcome();
+      leaveTimer = setTimeout(() => navigate('/', { replace: true }), 900);
+    });
+    return () => {
+      cancel();
+      if (leaveTimer) clearTimeout(leaveTimer);
+    };
   }, [bootstrapping, isAuthenticated, welcomePending, consumeWelcome, lines, navigate]);
 
   if (!bootstrapping && !isAuthenticated) {

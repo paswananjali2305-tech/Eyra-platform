@@ -3,6 +3,8 @@
  * Used by Memory & Knowledge when a saved session is selected.
  */
 
+import { normalizeDisplayedCode } from './codeText.js';
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -123,18 +125,7 @@ function renderTimelineTrack(steps) {
  * Expand those so diffs render line-by-line.
  */
 function normalizeCodeText(text) {
-  let s = String(text ?? '');
-  if (!s) return '';
-  const realNl = (s.match(/\n/g) || []).length;
-  const escNl = (s.match(/\\n/g) || []).length;
-  if (escNl > 0 && escNl >= realNl) {
-    s = s
-      .replace(/\\r\\n/g, '\n')
-      .replace(/\\n/g, '\n')
-      .replace(/\\t/g, '\t')
-      .replace(/\\r/g, '\n');
-  }
-  return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  return normalizeDisplayedCode(text).replace(/\r/g, '\n');
 }
 
 function buildUnifiedFromPair(original, corrected, fileName) {

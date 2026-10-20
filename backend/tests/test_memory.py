@@ -14,13 +14,27 @@ os.environ["GROQ_API_KEY"] = ""
 
 from app.main import app  # noqa: E402
 from app.database import clear_sessions, find_related, init_db  # noqa: E402
+from tests.conftest import use_test_db
 
 
 @pytest.fixture()
 def client():
+    use_test_db(TEST_DB)
+    if TEST_DB.exists():
+        TEST_DB.unlink()
     init_db()
     clear_sessions()
     with TestClient(app) as c:
+        created = c.post(
+            "/api/auth/register",
+            json={
+                "email": "memory@example.com",
+                "username": "memoryuser",
+                "password": "test-pass-1",
+            },
+        )
+        assert created.status_code == 200, created.text
+        c.headers["Authorization"] = f"Bearer {created.json()['access_token']}"
         yield c
     clear_sessions()
 

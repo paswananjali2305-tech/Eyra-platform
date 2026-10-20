@@ -144,25 +144,32 @@ class TypeScriptRuntime(RuntimeAdapter):
                 return unavailable_result(
                     self.language_id, "npx-tsc", "npx unavailable for TypeScript compile"
                 )
-            out_js = root / "snippet.js"
+            out_dir = root / "eyra_out"
+            out_js = out_dir / (src.stem + ".js")
+            tsc_args = [
+                npx,
+                "--yes",
+                "-p",
+                "typescript",
+                "tsc",
+                str(src),
+                "--outDir",
+                str(out_dir),
+                "--esModuleInterop",
+                "--target",
+                "ES2020",
+                "--module",
+                "commonjs",
+                "--skipLibCheck",
+            ]
+            if name.endswith((".tsx", ".jsx")):
+                tsc_args += ["--jsx", "react"]
             c_exit, c_out, c_err, c_to, c_ms = run_argv(
-                [
-                    npx,
-                    "--yes",
-                    "typescript",
-                    "tsc",
-                    str(src),
-                    "--outFile",
-                    str(out_js),
-                    "--esModuleInterop",
-                    "--target",
-                    "ES2020",
-                    "--module",
-                    "commonjs",
-                    "--skipLibCheck",
-                ],
+                tsc_args,
                 cwd=root,
-                timeout_s=min(timeout_s, 60.0),
+                # Compilation gets its own floor: a cold tsc run takes far
+                # longer than the (often 3s) snippet-execution timeout.
+                timeout_s=min(max(timeout_s, 30.0), 60.0),
             )
             if c_to:
                 return ExecutionResult(

@@ -58,6 +58,14 @@ function errorDotClass(errorType) {
   return 'bg-error';
 }
 
+function formatExecutionTime(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n < 1000) return `${Math.round(n)}ms`;
+  const seconds = n / 1000;
+  return `${seconds >= 10 ? seconds.toFixed(1) : seconds.toFixed(2)}s`;
+}
+
 function mostCommonError(items) {
   const counts = new Map();
   for (const it of items) {
@@ -346,7 +354,18 @@ function SparkLine({ tone = 'primary' }) {
   );
 }
 
-function KpiCard({ label, icon, value, suffix, trend, footer, visual }) {
+function fittedErrorClass(value) {
+  const length = String(value ?? '').length;
+  if (length > 22) return 'text-[13px] leading-4';
+  if (length > 16) return 'text-[15px] leading-5';
+  if (length > 10) return 'text-[18px] leading-6';
+  return 'text-[22px] leading-7';
+}
+
+function KpiCard({ label, icon, value, suffix, trend, footer, visual, fitValue = false }) {
+  const valueClass = fitValue
+    ? `whitespace-normal break-words font-headline-md font-bold text-on-surface ${fittedErrorClass(value)}`
+    : 'truncate font-display-lg text-display-lg font-bold text-on-surface';
   return (
     <div className="flex flex-col justify-between rounded-xl bg-surface-container p-space-md shadow-sm transition-colors hover:bg-surface-container-high">
       <div className="flex items-center justify-between gap-space-xs">
@@ -358,7 +377,7 @@ function KpiCard({ label, icon, value, suffix, trend, footer, visual }) {
       <div className="my-space-sm flex items-end justify-between gap-space-sm">
         <div className="flex min-w-0 flex-col gap-0.5">
           <div className="flex flex-wrap items-baseline gap-space-xs">
-            <span className="truncate font-display-lg text-display-lg font-bold text-on-surface">
+            <span className={valueClass} title={fitValue ? String(value ?? '') : undefined}>
               {value}
             </span>
             {suffix ? (
@@ -430,6 +449,8 @@ export function OverviewPage() {
   const active = status?.open_investigations ?? 0;
   const verified = status?.verified_count ?? 0;
   const common = useMemo(() => mostCommonError(items), [items]);
+  const avgExecution = formatExecutionTime(status?.avg_execution_ms);
+  const executionCount = Number(status?.execution_count || 0);
   const activity = useMemo(() => activitySeries(items, 7), [items]);
   const errorMix = useMemo(() => errorDistribution(items, 5), [items]);
   const lines = useMemo(() => snippetLines(detail), [detail]);
@@ -518,12 +539,17 @@ export function OverviewPage() {
             suffix={common.count ? `${common.count}×` : null}
             footer={common.count ? `${common.count} occurrences` : 'No errors yet'}
             visual={<SparkBars tone="error" />}
+            fitValue
           />
           <KpiCard
             label="Avg. Execution Time"
             icon="schedule"
-            value="—"
-            footer="Not tracked yet"
+            value={loading && !status ? '—' : avgExecution || '—'}
+            footer={
+              executionCount > 0
+                ? `Mean of ${executionCount} run${executionCount === 1 ? '' : 's'}`
+                : 'Run code to measure'
+            }
             visual={<SparkLine tone="primary" />}
           />
         </div>

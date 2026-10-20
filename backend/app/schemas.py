@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SessionStatus(str, Enum):
@@ -13,6 +13,35 @@ class SessionStatus(str, Enum):
     VERIFIED = "verified"
     UNVERIFIED = "unverified"
     FAILED = "failed"
+
+
+class DiagnosticItem(BaseModel):
+    """VS Code Problems entry supplied by the extension (optional analyze input)."""
+
+    message: str = Field(..., min_length=1, max_length=2_000)
+    severity: Literal["error", "warning", "info", "hint"]
+    file_name: str = Field(..., min_length=1, max_length=512)
+    line: int = Field(..., ge=0, le=1_000_000)
+    character: int = Field(default=0, ge=0, le=1_000_000)
+    end_line: int | None = Field(default=None, ge=0, le=1_000_000)
+    end_character: int | None = Field(default=None, ge=0, le=1_000_000)
+    source: str | None = Field(default=None, max_length=128)
+    code: str | None = Field(default=None, max_length=128)
+
+    @field_validator("file_name")
+    @classmethod
+    def strip_diag_path(cls, value: str) -> str:
+        name = value.replace("\\", "/").split("/")[-1].strip()
+        if not name:
+            raise ValueError("file_name must include a file name")
+        return name
+
+    @field_validator("message", "source", "code")
+    @classmethod
+    def reject_null_bytes_diag(cls, value: str | None) -> str | None:
+        if value is not None and "\x00" in value:
+            raise ValueError("null bytes are not allowed")
+        return value
 
 
 class AnalyzeRequest(BaseModel):
@@ -25,6 +54,8 @@ class AnalyzeRequest(BaseModel):
     project_name: str = Field(default="default", max_length=128)
     # runtime = fast single-snippet model; audit reserved for heavier paths
     reasoning_profile: Literal["runtime", "audit"] = "runtime"
+    # Optional VS Code Problems; empty/absent preserves backward compatibility
+    diagnostics: list[DiagnosticItem] = Field(default_factory=list, max_length=50)
 
     @field_validator("file_name")
     @classmethod
@@ -217,6 +248,34 @@ class AuthTokenResponse(BaseModel):
     user: AuthUserPublic
 
 
+class ExtensionCodeResponse(BaseModel):
+    code: str
+    expires_in: int
+
+
+class ExtensionExchangeRequest(BaseModel):
+    code: str = Field(..., min_length=20, max_length=200)
+
+
+class ExtensionOpenRequest(BaseModel):
+    """Open/install the local unpublished EYRA extension into VS Code (no Marketplace, no secrets)."""
+
+    editor: Literal["auto", "cursor", "vscode"] = "vscode"
+
+
+class ExtensionOpenResponse(BaseModel):
+    ok: bool
+    editor: str | None = None
+    extension_id: str
+    uri: str | None = None
+    vsix_path: str | None = None
+    installed: bool = False
+    opened: bool = False
+    mode: Literal["vsix", "development", "none"] = "none"
+    message: str
+    detail: str = ""
+
+
 class StatusResponse(BaseModel):
     service: str
     version: str
@@ -232,6 +291,8 @@ class StatusResponse(BaseModel):
     session_count: int
     verified_count: int
     open_investigations: int
+    avg_execution_ms: int | None = None
+    execution_count: int = 0
     extension_note: str
 
 
@@ -390,8 +451,8 @@ class PerformanceRunTestsRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=200_000)
     language: str = Field(default="python", max_length=64)
     file_name: str = Field(default="snippet.py", max_length=512)
-    cases: list[dict[str, Any]] = Field(default_factory=list)
-    case_ids: list[int] | None = None
+    cases: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
+    case_ids: list[int] | None = Field(default=None, max_length=100)
 
     @field_validator("code")
     @classmethod
@@ -399,3 +460,24 @@ class PerformanceRunTestsRequest(BaseModel):
         if "\x00" in value:
             raise ValueError("null bytes are not allowed")
         return value
+
+    @model_validator(mode="after")
+    def validate_case_ids(self) -> "PerformanceRunTestsRequest":
+        seen: set[int] = set()
+        for case in self.cases:
+            case_id = case.get("id")
+            if isinstance(case_id, bool) or not isinstance(case_id, int) or case_id <= 0:
+                raise ValueError("each test case id must be a positive integer")
+            if case_id in seen:
+                raise ValueError("test case ids must be unique")
+            seen.add(case_id)
+        requested = self.case_ids or []
+        if any(isinstance(item, bool) or not isinstance(item, int) or item <= 0 for item in requested):
+            raise ValueError("case_ids must contain positive integers")
+        if len(set(requested)) != len(requested):
+            raise ValueError("case_ids must be unique")
+        if self.cases and requested:
+            unknown = [item for item in requested if item not in seen]
+            if unknown:
+                raise ValueError(f"unknown test case id(s): {unknown}")
+        return self

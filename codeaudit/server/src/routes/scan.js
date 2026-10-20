@@ -2,6 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { scanStorage } from '../services/storage.js';
+import { requireAuditUser } from '../services/internalAuth.js';
 import { runCodebaseAudit } from '../services/staticAnalyzer.js';
 import { auditDependencies } from '../services/dependencyAuditor.js';
 import { runAiSemanticPass } from '../services/aiSemanticPass.js';
@@ -11,6 +12,7 @@ import { normalizeAndDeduplicate } from '../services/analysis/findingsNormalize.
 import { collectRepoFiles } from '../services/repoFileInventory.js';
 
 const router = express.Router();
+router.use(requireAuditUser);
 
 // Active SSE client connections
 const sseClients = new Map();
@@ -153,7 +155,7 @@ function isSecurityIssue(issue = {}) {
 
 // Get all scans
 router.get('/scans', (req, res) => {
-  const scans = scanStorage.getAllScans().map(s => ({
+  const scans = scanStorage.listForUser(req.eyraUserId).map(s => ({
     id: s.id,
     projectName: s.projectName,
     status: s.status,
@@ -164,17 +166,18 @@ router.get('/scans', (req, res) => {
   res.json({ scans });
 });
 
-// Clear all persisted scans (Investigation History → Clear Stale Cache)
 router.delete('/scans', (req, res) => {
-  cancelFlags.clear();
-  const cleared = scanStorage.clearAll();
+  for (const scan of scanStorage.listForUser(req.eyraUserId)) {
+    cancelFlags.delete(scan.id);
+  }
+  const cleared = scanStorage.clearForUser(req.eyraUserId);
   res.json({ ok: true, cleared });
 });
 
 // SSE endpoint for live scan progress
 router.get('/scan/:id/events', (req, res) => {
   const { id } = req.params;
-  const scan = scanStorage.getScan(id);
+  const scan = scanStorage.getOwnedScan(id, req.eyraUserId);
   if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -204,7 +207,7 @@ router.get('/scan/:id/events', (req, res) => {
 // Cancel an in-flight (or pending) scan — cooperative stop between stages
 router.post('/scan/:id/cancel', (req, res) => {
   const { id } = req.params;
-  const scan = scanStorage.getScan(id);
+  const scan = scanStorage.getOwnedScan(id, req.eyraUserId);
   if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
   if (scan.status === 'completed' || scan.status === 'failed') {
@@ -241,7 +244,7 @@ router.post('/scan/:id/cancel', (req, res) => {
 // Trigger asynchronous analysis
 router.post('/scan/:id/start', async (req, res) => {
   const { id } = req.params;
-  const scan = scanStorage.getScan(id);
+  const scan = scanStorage.getOwnedScan(id, req.eyraUserId);
   if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
   if (scan.status === 'analyzing') {
@@ -701,7 +704,7 @@ router.post('/scan/:id/start', async (req, res) => {
 // Get single scan details (explorer fileContents always rebuilt from sandbox on disk)
 router.get('/scan/:id', (req, res) => {
   const { id } = req.params;
-  const scan = scanStorage.getScan(id, { hydrate: true });
+  const scan = scanStorage.getOwnedScan(id, req.eyraUserId, { hydrate: true });
   if (!scan) return res.status(404).json({ error: 'Scan not found' });
   res.json({ scan });
 });
@@ -710,17 +713,22 @@ router.get('/scan/:id', (req, res) => {
 router.post('/scan/:id/autofix', (req, res) => {
   const { id } = req.params;
   const { issueId } = req.body;
-  const scan = scanStorage.getScan(id);
+  const scan = scanStorage.getOwnedScan(id, req.eyraUserId);
   if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
   const issue = (scan.issues || []).find(i => i.id === issueId);
   if (!issue) return res.status(404).json({ error: 'Issue not found' });
 
+  const applicable = Boolean(issue.patchDiff) && issue.patchApplicable !== false;
   res.json({
-    success: true,
+    success: applicable,
+    applicable,
+    appliedToDisk: false,
+    verification: 'not_run',
     issueId,
-    patchDiff: issue.patchDiff || '--- a/file\n+++ b/file\n@@ -1,1 +1,1 @@\n+ // Auto-fix patch applied',
-    explanation: issue.aiExplanation || 'AI patch refactored vulnerable statement with strict boundaries.'
+    patchDiff: applicable ? issue.patchDiff : '',
+    patchProvenance: issue.patchProvenance || 'unavailable',
+    explanation: issue.aiExplanation || 'No source-specific patch is available for this finding.',
   });
 });
 

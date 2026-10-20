@@ -1,7 +1,9 @@
 import express from 'express';
 import { scanStorage } from '../services/storage.js';
+import { requireAuditUser } from '../services/internalAuth.js';
 
 const router = express.Router();
+router.use(requireAuditUser);
 
 function issueKey(iss) {
   const path = String(iss?.file || iss?.path || '').replace(/\\/g, '/');
@@ -368,7 +370,7 @@ function buildMarkdown(scan) {
 
   md += `## Third-Party Dependency Vulnerabilities\n\n`;
   if (deps.length === 0) {
-    md += `*No vulnerable packages matching known CVEs detected.*\n\n`;
+    md += `*No confirmed matches in the offline known-CVE dataset. Packages that are not in that short list were not verified and are not reported as safe.*\n\n`;
   } else {
     md += `| Package | Installed | CVE | CVSS | Patched Version | Advisory |\n`;
     md += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
@@ -387,7 +389,7 @@ router.get('/scan/:id/report', (req, res) => {
   const format = String(req.query.format || 'markdown').toLowerCase();
   const resolvedKeys = parseResolvedKeys(req.query.resolvedKeys);
 
-  const scan = scanStorage.getScan(id);
+  const scan = scanStorage.getOwnedScan(id, req.eyraUserId);
   if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
   const structured = buildStructuredReport(scan, resolvedKeys);

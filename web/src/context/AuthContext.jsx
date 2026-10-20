@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, clearAuthToken, getAuthToken, setAuthToken } from '../api/client';
+import { clearLoggedOutBrowserState } from '../lib/userSessionState';
+import { resetWorkspaceMemory } from '../lib/workspaceDraft';
 
 const AuthContext = createContext(null);
 
@@ -56,15 +58,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const clearSession = useCallback(() => {
+    const userId = user?.id || null;
+    clearLoggedOutBrowserState(localStorage, sessionStorage, userId);
+    resetWorkspaceMemory();
     clearAuthToken();
     persistUser(null);
     setUser(null);
-    try {
-      sessionStorage.removeItem(WELCOME_KEY);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;
