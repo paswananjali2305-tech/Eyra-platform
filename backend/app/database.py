@@ -233,9 +233,7 @@ def get_user_by_login(login: str) -> sqlite3.Row | None:
     login = (login or "").strip()
     if not login:
         return None
-    if "@" in login:
-        return get_user_by_email(login)
-    return get_user_by_username(login) or get_user_by_email(login)
+    return get_user_by_email(login) or get_user_by_username(login)
 
 
 def _ensure_app_config_engine_columns(conn: sqlite3.Connection) -> None:

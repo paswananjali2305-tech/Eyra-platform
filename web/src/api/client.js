@@ -134,8 +134,15 @@ async function request(path, options = {}) {
       let detail = `HTTP ${res.status}`;
       if (data && typeof data === 'object') {
         if ('detail' in data) {
-          detail =
-            typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+          if (typeof data.detail === 'string') {
+            detail = data.detail;
+          } else if (Array.isArray(data.detail)) {
+            detail = data.detail
+              .map((item) => (item?.msg ? item.msg.replace(/^Value error,\s*/i, '') : JSON.stringify(item)))
+              .join('; ');
+          } else {
+            detail = JSON.stringify(data.detail);
+          }
         } else if (typeof data.error === 'string' && data.error.trim()) {
           // Eyraaaa audit engine uses { error: "..." }
           detail = data.error;

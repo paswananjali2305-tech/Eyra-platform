@@ -12,3 +12,32 @@ codeaudit/server/node_modules/
 codeaudit/server/sandbox_uploads/
 codeaudit/server/data/
 codeaudit/server/temp_uploads/
+
+# Python virtual environment
+backend/.venv/
+__pycache__/
+*.py[cod]
+
+# Local Python virtual environments
+.venv/
+venv/
+
+# JavaScript dependencies
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python cache files
+
+# Suspicious files - exclude until verified
+web/cd
+web/copy
+web/git
+web/pip
+web/python
+web/uvicorn
+web/26.2.2
+
+codeaudit/server/.env

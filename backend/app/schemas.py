@@ -212,8 +212,8 @@ class AuthRegisterRequest(BaseModel):
     @classmethod
     def normalize_username(cls, value: str) -> str:
         name = value.strip()
-        if not name.replace("_", "").replace(".", "").replace("-", "").isalnum():
-            raise ValueError("Username may only use letters, numbers, ., _, -")
+        if not name.replace("_", "").replace(".", "").replace("-", "").replace("@", "").isalnum():
+            raise ValueError("Username may only use letters, numbers, ., _, -, @")
         return name
 
     @field_validator("display_name")
